@@ -305,3 +305,74 @@ button.g-card-row { cursor: pointer; }
   .g-scrim { border-radius: 0; }
   .g-sheet { border-radius: 26px 26px 0 0; }
 }
+
+/* ---------- pro upgrades ---------- */
+.g-live-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
+  color: #f59e0b; background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.35);
+  padding: 5px 10px; border-radius: 999px; margin-left: 10px;
+}
+.g-live-tag .g-pulse { width: 7px; height: 7px; background: #f59e0b; }
+
+.g-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 4px 0 14px; }
+.g-stat {
+  background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px; padding: 12px 6px; text-align: center;
+}
+.g-stat b { display: block; font-size: 22px; font-weight: 750; color: #f2f5f9; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
+.g-stat span { font-size: 10.5px; color: #8b95a5; text-transform: uppercase; letter-spacing: .6px; }
+
+/* live audio waveform */
+@keyframes gWaveBar { 0%,100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
+.g-wave-live { display: flex; align-items: center; justify-content: center; gap: 3px; height: 40px; margin: 10px 0 12px; }
+.g-wave-live span {
+  width: 4px; height: 100%; border-radius: 2px;
+  background: linear-gradient(180deg, #60a5fa, #2563eb);
+  transform-origin: center; animation: gWaveBar 1.1s ease-in-out infinite; opacity: .85;
+}
+
+/* engine trace */
+.g-trace { border: 1px solid rgba(96,165,250,.25); background: rgba(10,16,26,.6); border-radius: 13px; margin-bottom: 12px; overflow: hidden; }
+.g-trace-head {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 11px 13px;
+}
+.g-trace-head .g-card-title { flex: 0 0 auto; }
+.g-trace-meta { font-size: 11px; color: #6d7887; flex: 1; text-align: left; font-family: ui-monospace, Consolas, monospace; }
+.g-trace-body { max-height: 168px; overflow-y: auto; padding: 4px 13px 12px; scrollbar-width: thin; }
+.g-tline { font-family: ui-monospace, Consolas, monospace; font-size: 11px; line-height: 1.7; color: #7d8a9d; word-break: break-word; }
+.g-tline .g-tt { color: #525c6b; }
+.g-tline.eval { color: #66727f; }
+.g-tline.match { color: #fbbf24; }
+.g-tline.meta { color: #9cc2ff; }
+.g-tline.trip { color: #f59e0b; font-weight: 700; }
+
+/* tripwire sheet signal chips */
+.g-sheet-signals { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0 4px; }
+.g-sheet-chip {
+  font-size: 12px; font-weight: 650; color: #fbbf24;
+  background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.4);
+  padding: 6px 11px; border-radius: 999px;
+}
+
+/* case tabs */
+.g-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0 4px; }
+.g-tab {
+  padding: 10px 4px; border-radius: 11px; border: 1px solid rgba(255,255,255,.09);
+  background: rgba(255,255,255,.03); color: #8b95a5; font-size: 12px; font-weight: 700; cursor: pointer;
+  transition: .2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.g-tab.on { background: rgba(245,158,11,.14); border-color: rgba(245,158,11,.5); color: #fbbf24; }
+
+/* data tab */
+.g-json {
+  font-family: ui-monospace, Consolas, monospace; font-size: 11px; line-height: 1.65;
+  color: #a9c6e8; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.07);
+  border-radius: 10px; padding: 12px; margin: 10px 0 0; max-height: 300px; overflow: auto;
+  white-space: pre-wrap; word-break: break-word; text-align: left;
+}
+.g-kv { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,.06); font-size: 13px; }
+.g-kv:first-of-type { border-top: 0; }
+.g-kv span { color: #8b95a5; }
+.g-kv code { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: #dfe6ee; background: rgba(255,255,255,.06); padding: 4px 9px; border-radius: 7px; }

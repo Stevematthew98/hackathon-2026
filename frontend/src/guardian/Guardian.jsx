@@ -5,7 +5,7 @@ import {
   CALLER_NUMBER_MASKED,
   SCRIPT_END,
 } from './callScript';
-import { createEngine, TRIPWIRE_THRESHOLD } from './signalEngine';
+import { createEngine, TRIPWIRE_THRESHOLD, PATTERN_COUNT } from './signalEngine';
 import './Guardian.css';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -28,6 +28,14 @@ function todayStamp() {
   });
 }
 
+function loadStats() {
+  try {
+    return JSON.parse(localStorage.getItem('tg-stats-v1')) || { calls: 0, cases: 0, signals: 0 };
+  } catch {
+    return { calls: 0, cases: 0, signals: 0 };
+  }
+}
+
 export default function Guardian() {
   const [phase, setPhase] = useState('idle'); // idle | incoming | live | case | discarded
   const [permission, setPermission] = useState(true);
@@ -46,17 +54,29 @@ export default function Guardian() {
   const [finalDuration, setFinalDuration] = useState(0);
   const [caseId, setCaseId] = useState(null);
   const [serverSave, setServerSave] = useState(null); // null | saving | saved | local
+  const [saveMeta, setSaveMeta] = useState(null);
+  const [casePayload, setCasePayload] = useState(null);
+  // pro upgrades
+  const [trace, setTrace] = useState([]);
+  const [traceOpen, setTraceOpen] = useState(true);
+  const [stats, setStats] = useState(loadStats);
+  const [caseTab, setCaseTab] = useState('overview');
 
   const engineRef = useRef(null);
   const timeRef = useRef(0);
   const processedRef = useRef(0);
   const transcriptEndRef = useRef(null);
+  const traceEndRef = useRef(null);
   const toastTimer = useRef(null);
 
   const showToast = (msg) => {
     setToast(msg);
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 3200);
+  };
+
+  const pushTrace = (entries) => {
+    setTrace((p) => [...p, ...entries].slice(-80));
   };
 
   // ---- call clock: advances time, feeds new transcript lines to the engine ----
@@ -76,7 +96,18 @@ export default function Guardian() {
       let newly = [];
       if (due.length && engineRef.current) newly = engineRef.current.processLines(due);
       setCallTime(next);
-      if (newly.length) setFired((p) => [...p, ...newly]);
+      const callerLines = due.filter((l) => l.speaker === 'caller');
+      if (callerLines.length || newly.length) {
+        const entries = callerLines
+          .filter((l) => !newly.some((n) => n.quote === l.text))
+          .map((l) => ({ t: l.t, kind: 'eval', text: `line evaluated · ${PATTERN_COUNT} patterns checked · no match` }));
+        const matches = newly.map((n) => ({ t: n.t, kind: 'match', text: `MATCH ${n.label} → "${n.quote}"` }));
+        pushTrace([...entries, ...matches]);
+      }
+      if (newly.length) {
+        setFired((p) => [...p, ...newly]);
+        setExpandedSignal(newly[newly.length - 1].id); // auto-expand latest hit
+      }
     }, 250);
     return () => clearInterval(iv);
   }, [phase]);
@@ -86,6 +117,7 @@ export default function Guardian() {
     if (fired.length >= TRIPWIRE_THRESHOLD && !tripwire) {
       setTripwire(true);
       setSheetOpen(true);
+      pushTrace([{ t: timeRef.current, kind: 'trip', text: `TRIPWIRE · ${fired.length}/${TRIPWIRE_THRESHOLD + 1} signals — opening case, no verdict` }]);
       try { navigator.vibrate && navigator.vibrate(40); } catch { /* noop */ }
     }
   }, [fired, tripwire]);
@@ -107,6 +139,10 @@ export default function Guardian() {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [callTime, phase]);
 
+  useEffect(() => {
+    if (traceOpen) traceEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [trace, traceOpen]);
+
   const heardLines = useMemo(
     () => CALL_SCRIPT.filter((l) => l.t <= callTime),
     [callTime]
@@ -116,12 +152,17 @@ export default function Guardian() {
   const saveCaseToServer = (payload) => {
     if (!API) { setServerSave('local'); return; }
     setServerSave('saving');
+    const t0 = performance.now();
     fetch(`${API}/api/guardian/cases`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
-      .then((r) => { if (!r.ok) throw new Error('save failed'); setServerSave('saved'); })
+      .then((r) => {
+        if (!r.ok) throw new Error('save failed');
+        setSaveMeta({ status: r.status, ms: Math.round(performance.now() - t0) });
+        setServerSave('saved');
+      })
       .catch(() => setServerSave('local'));
   };
 
@@ -140,9 +181,18 @@ export default function Guardian() {
     setTranscriptOpen(false);
     setNumberRevealed(false);
     setConfirmDelete(false);
-    setExpandedSignal(null);
+    setExpandedSignal(initial.length ? initial[0].id : null);
     setCaseId('TG-2026-' + Math.floor(1000 + Math.random() * 9000));
     setServerSave(null);
+    setSaveMeta(null);
+    setCasePayload(null);
+    setCaseTab('overview');
+    setTrace([
+      { t: 0, kind: 'meta', text: 'event: incoming call answered' },
+      { t: 0, kind: 'meta', text: 'metadata: caller unknown · not in contacts · unverifiable' },
+      { t: 0, kind: 'match', text: 'MATCH Unknown number → signal 1/5' },
+      { t: 0, kind: 'meta', text: `monitoring: 5 signal rules armed · ${PATTERN_COUNT} patterns · event-only capture` },
+    ]);
     setPhase('live');
   };
 
@@ -153,10 +203,13 @@ export default function Guardian() {
     setFinalDuration(dur);
     setClaim(c);
     setPlaying(false);
+    setStats((s) => {
+      const n = { calls: s.calls + 1, cases: s.cases + (tripwire ? 1 : 0), signals: s.signals + fired.length };
+      try { localStorage.setItem('tg-stats-v1', JSON.stringify(n)); } catch { /* noop */ }
+      return n;
+    });
     if (tripwire) {
-      // Persist the auto-built case to the TrustGuard backend for the
-      // later pipeline stages (graph → verification → verdict → report).
-      saveCaseToServer({
+      const payload = {
         id: caseId,
         createdAt: new Date().toISOString(),
         durationSec: dur,
@@ -164,7 +217,10 @@ export default function Guardian() {
         claimedIdentity: c,
         signals: fired,
         transcript: CALL_SCRIPT.filter((l) => l.t <= timeRef.current),
-      });
+      };
+      setCasePayload(payload);
+      pushTrace([{ t: timeRef.current, kind: 'trip', text: `case ${caseId} built · ${fired.length} signals · persisting to server` }]);
+      saveCaseToServer(payload);
       setPhase('case');
     } else {
       // Privacy rule: no tripwire → captured audio/transcript discarded immediately.
@@ -185,7 +241,12 @@ export default function Guardian() {
     [finalDuration]
   );
 
-  const firedIds = new Set(fired.map((f) => f.id));
+  const TABS = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'signals', label: `Signals · ${fired.length}` },
+    { id: 'transcript', label: 'Transcript' },
+    { id: 'data', label: 'Data' },
+  ];
 
   // ---------------- screens ----------------
   return (
@@ -199,6 +260,7 @@ export default function Guardian() {
             </svg>
           </span>
           <span className="g-brand-name">TrustGuard</span>
+          <span className="g-live-tag"><span className="g-pulse" />live prototype</span>
         </div>
         <div className="g-pages" aria-label="Prototype pages">
           {[1, 2, 3, 4, 5].map((n) => (
@@ -229,6 +291,12 @@ export default function Guardian() {
                   <div className="g-protect on"><span className="g-pulse" />Protection ON</div>
                 </div>
 
+                <div className="g-stats">
+                  <div className="g-stat"><b>{stats.calls}</b><span>calls checked</span></div>
+                  <div className="g-stat"><b>{stats.cases}</b><span>cases built</span></div>
+                  <div className="g-stat"><b>{stats.signals}</b><span>signals caught</span></div>
+                </div>
+
                 <div className="g-card">
                   <div className="g-card-row">
                     <div>
@@ -243,7 +311,7 @@ export default function Guardian() {
 
                 <div className="g-how">
                   <div className="g-how-step"><b>1</b><span>A call or message arrives — TrustGuard wakes for that event only.</span></div>
-                  <div className="g-how-step"><b>2</b><span>Suspicious signals are counted. One alone means nothing.</span></div>
+                  <div className="g-how-step"><b>2</b><span>A rule engine counts suspicious signals. One alone means nothing.</span></div>
                   <div className="g-how-step"><b>3</b><span>4+ signals trip the wire — the case builds itself. You tap once.</span></div>
                 </div>
 
@@ -284,6 +352,11 @@ export default function Guardian() {
                 <div className="g-live-head">
                   <div className="g-live-num">{CALLER_NUMBER_MASKED}</div>
                   <div className="g-live-timer">{fmt(callTime)}</div>
+                  <div className="g-wave-live" aria-hidden="true">
+                    {Array.from({ length: 36 }).map((_, i) => (
+                      <span key={i} style={{ animationDelay: `${((i * 0.13) % 1.1).toFixed(2)}s` }} />
+                    ))}
+                  </div>
                   <div className="g-checking"><span className="g-pulse blue" />Checking this call…</div>
                 </div>
 
@@ -294,7 +367,7 @@ export default function Guardian() {
                 )}
 
                 <div className="g-signals">
-                  <div className="g-signals-title">Signals</div>
+                  <div className="g-signals-title">Signals · {fired.length}/5</div>
                   {engineRef.current?.defs.map((d) => {
                     const f = fired.find((x) => x.id === d.id);
                     const open = expandedSignal === d.id;
@@ -315,6 +388,24 @@ export default function Guardian() {
                     );
                   })}
                   <p className="g-signals-note">Signals start an investigation. They never decide it.</p>
+                </div>
+
+                <div className="g-trace">
+                  <button className="g-trace-head" onClick={() => setTraceOpen(!traceOpen)}>
+                    <span className="g-card-title">Engine trace</span>
+                    <span className="g-trace-meta">{PATTERN_COUNT} patterns · rule-based</span>
+                    <span className="g-chev">{traceOpen ? '▾' : '▸'}</span>
+                  </button>
+                  {traceOpen && (
+                    <div className="g-trace-body">
+                      {trace.map((e, i) => (
+                        <div key={i} className={`g-tline ${e.kind}`}>
+                          <span className="g-tt">[ {e.t.toFixed(2)}s ]</span> {e.text}
+                        </div>
+                      ))}
+                      <div ref={traceEndRef} />
+                    </div>
+                  )}
                 </div>
 
                 <div className="g-transcript">
@@ -339,6 +430,11 @@ export default function Guardian() {
                       <div className="g-sheet-kicker"><span className="g-trip-dot" />Pattern detected · {fmt(callTime)}</div>
                       <h2>Suspicious pattern detected</h2>
                       <p>We’ve saved everything so far. Check when you’re ready — or keep listening.</p>
+                      <div className="g-sheet-signals">
+                        {fired.map((f) => (
+                          <span key={f.id} className="g-sheet-chip">✓ {f.label}</span>
+                        ))}
+                      </div>
                       <p className="g-sheet-micro">This is not a verdict. It’s the start of a check.</p>
                       <button className="g-primary" onClick={endCall}>View case</button>
                       <button className="g-ghost" onClick={() => setSheetOpen(false)}>Not now</button>
@@ -357,42 +453,93 @@ export default function Guardian() {
                     <div className="g-case-time">{todayStamp()} · {fmt(finalDuration)} call</div>
                     <div className="g-sync">
                       {serverSave === 'saving' && 'Saving to TrustGuard server…'}
-                      {serverSave === 'saved' && 'Saved to TrustGuard server'}
+                      {serverSave === 'saved' && `Saved to TrustGuard server${saveMeta ? ` · ${saveMeta.ms}ms` : ''}`}
                       {serverSave === 'local' && 'Saved on this device'}
                     </div>
                   </div>
                   <span className="g-chip review">Under review</span>
                 </div>
 
-                {/* audio */}
-                <div className="g-card">
-                  <div className="g-card-title">Call audio</div>
-                  <div className="g-player">
-                    <button className="g-play" onClick={() => setPlaying(!playing)} aria-label={playing ? 'Pause' : 'Play'}>
-                      {playing ? (
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
-                      ) : (
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                      )}
+                <div className="g-tabs">
+                  {TABS.map((t) => (
+                    <button
+                      key={t.id}
+                      className={`g-tab${caseTab === t.id ? ' on' : ''}`}
+                      onClick={() => setCaseTab(t.id)}
+                    >
+                      {t.label}
                     </button>
-                    <div className="g-wave" aria-hidden="true">
-                      {WAVEFORM.map((h, i) => (
-                        <span key={i} style={{ height: `${h}%` }} className={i / WAVEFORM.length <= playPos / Math.max(finalDuration, 1) ? 'on' : ''} />
-                      ))}
-                    </div>
-                    <span className="g-play-t">{fmt(playPos)} / {fmt(finalDuration)}</span>
-                  </div>
-                  <p className="g-fine">Simulated playback · never autoplayed</p>
+                  ))}
                 </div>
 
-                {/* transcript */}
-                <div className="g-card">
-                  <button className="g-card-row" onClick={() => setTranscriptOpen(!transcriptOpen)}>
+                {caseTab === 'overview' && (
+                  <>
+                    <div className="g-card g-claim">
+                      <div className="g-card-row">
+                        <div className="g-card-title">Claimed identity</div>
+                        <span className="g-chip unverified">Unverified claim</span>
+                      </div>
+                      {claim ? (
+                        <>
+                          <p className="g-claim-text">
+                            Caller claimed to be <b>{claim.title ? claim.title + ' ' : ''}{claim.name}</b>
+                            {claim.org ? <>, {claim.org}</> : null}
+                          </p>
+                          <p className="g-fine">“{claim.quote}” · {fmt(claim.t)}</p>
+                        </>
+                      ) : (
+                        <p className="g-fine">No identity claim extracted from this call.</p>
+                      )}
+                    </div>
+
+                    <div className="g-card">
+                      <div className="g-card-title">Phone number</div>
+                      <button className="g-num" onClick={() => setNumberRevealed(!numberRevealed)}>
+                        {numberRevealed ? CALLER_NUMBER_FULL : CALLER_NUMBER_MASKED}
+                        <span className="g-fine">{numberRevealed ? ' · tap to mask' : ' · tap to reveal'}</span>
+                      </button>
+                    </div>
+
+                    <div className="g-card">
+                      <div className="g-card-title">Call audio</div>
+                      <div className="g-player">
+                        <button className="g-play" onClick={() => setPlaying(!playing)} aria-label={playing ? 'Pause' : 'Play'}>
+                          {playing ? (
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                          )}
+                        </button>
+                        <div className="g-wave" aria-hidden="true">
+                          {WAVEFORM.map((h, i) => (
+                            <span key={i} style={{ height: `${h}%` }} className={i / WAVEFORM.length <= playPos / Math.max(finalDuration, 1) ? 'on' : ''} />
+                          ))}
+                        </div>
+                        <span className="g-play-t">{fmt(playPos)} / {fmt(finalDuration)}</span>
+                      </div>
+                      <p className="g-fine">Simulated playback · never autoplayed</p>
+                    </div>
+                  </>
+                )}
+
+                {caseTab === 'signals' && (
+                  <div className="g-card">
+                    <div className="g-card-title">Signals that fired · {fired.length} of 5</div>
+                    {fired.map((f) => (
+                      <div key={f.id} className="g-ev-signal">
+                        <div className="g-ev-head"><span className="g-signal-box hit sm">✓</span><b>{f.label}</b><span className="g-signal-t">{fmt(f.t)}</span></div>
+                        <div className="g-signal-hint">{f.hint}</div>
+                        <div className="g-signal-quote">“{f.quote}”</div>
+                      </div>
+                    ))}
+                    <p className="g-fine">Signals start the investigation — the verdict comes from the full analysis.</p>
+                  </div>
+                )}
+
+                {caseTab === 'transcript' && (
+                  <div className="g-card">
                     <div className="g-card-title">Transcript</div>
-                    <span className="g-chev">{transcriptOpen ? '▾' : '▸'}</span>
-                  </button>
-                  {transcriptOpen && (
-                    <div className="g-full-transcript">
+                    <div className="g-full-transcript" style={{ maxHeight: 'none' }}>
                       {caseLines.map((l, i) => (
                         <div key={i} className={`g-line ${l.speaker}`}>
                           <span className="g-who">{l.speaker === 'caller' ? 'Caller' : 'You'} · {fmt(l.t)}</span>
@@ -400,50 +547,25 @@ export default function Guardian() {
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
-
-                {/* number */}
-                <div className="g-card">
-                  <div className="g-card-title">Phone number</div>
-                  <button className="g-num" onClick={() => setNumberRevealed(!numberRevealed)}>
-                    {numberRevealed ? CALLER_NUMBER_FULL : CALLER_NUMBER_MASKED}
-                    <span className="g-fine">{numberRevealed ? ' · tap to mask' : ' · tap to reveal'}</span>
-                  </button>
-                </div>
-
-                {/* claimed identity */}
-                <div className="g-card g-claim">
-                  <div className="g-card-row">
-                    <div className="g-card-title">Claimed identity</div>
-                    <span className="g-chip unverified">Unverified claim</span>
                   </div>
-                  {claim ? (
-                    <>
-                      <p className="g-claim-text">
-                        Caller claimed to be <b>{claim.title ? claim.title + ' ' : ''}{claim.name}</b>
-                        {claim.org ? <>, {claim.org}</> : null}
-                      </p>
-                      <p className="g-fine">“{claim.quote}” · {fmt(claim.t)}</p>
-                    </>
-                  ) : (
-                    <p className="g-fine">No identity claim extracted from this call.</p>
-                  )}
-                </div>
+                )}
 
-                {/* signals */}
-                <div className="g-card">
-                  <div className="g-card-title">Signals that fired · {fired.length} of 5</div>
-                  {fired.map((f) => (
-                    <div key={f.id} className="g-ev-signal">
-                      <div className="g-ev-head"><span className="g-signal-box hit sm">✓</span><b>{f.label}</b><span className="g-signal-t">{fmt(f.t)}</span></div>
-                      <div className="g-signal-quote">“{f.quote}”</div>
+                {caseTab === 'data' && (
+                  <>
+                    <div className="g-card">
+                      <div className="g-card-title">Case object</div>
+                      <pre className="g-json">{JSON.stringify(casePayload, null, 2)}</pre>
                     </div>
-                  ))}
-                  <p className="g-fine">Signals start the investigation — the verdict comes from the full analysis.</p>
-                </div>
+                    <div className="g-card">
+                      <div className="g-card-title">Backend sync</div>
+                      <div className="g-kv"><span>Endpoint</span><code>POST /api/guardian/cases</code></div>
+                      <div className="g-kv"><span>Status</span><code>{saveMeta ? `${saveMeta.status} Created` : serverSave === 'local' ? 'offline — local only' : '…'}</code></div>
+                      <div className="g-kv"><span>Latency</span><code>{saveMeta ? `${saveMeta.ms} ms` : '—'}</code></div>
+                      <div className="g-kv"><span>Host</span><code>hackathon-2026-backend · Railway</code></div>
+                    </div>
+                  </>
+                )}
 
-                {/* transparency */}
                 <div className="g-card g-transp">
                   <div className="g-card-title">What was captured</div>
                   <p>Audio, transcript, number, time. Nothing else — and nothing between calls.</p>

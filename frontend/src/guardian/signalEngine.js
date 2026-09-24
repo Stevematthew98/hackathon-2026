@@ -142,3 +142,6 @@ function titleCase(s) {
 }
 
 export const TRIPWIRE_THRESHOLD = 4;
+
+export const PATTERN_COUNT = SIGNAL_DEFS.filter((d) => d.patterns)
+  .reduce((n, d) => n + d.patterns.length, 0);
