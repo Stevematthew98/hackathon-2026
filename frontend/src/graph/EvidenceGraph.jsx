@@ -10,7 +10,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import PageHead from '../PageHead';
 import { CASES, REL_META, NODE_KIND, REL_CHIPS } from './graphScenarios';
 import CheckWorkbench from './CheckWorkbench';
-import DemoWalkthrough3 from './DemoWalkthrough3';
 import './EvidenceGraph.css';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -295,17 +294,6 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
               ))}
             </div>
             <button className="eg-tour-btn" onClick={startTour}>Take the guided tour · 6 steps</button>
-
-            {/* DEMO WALKTHROUGH — additive presenter script (Idea 3 only) */}
-            <DemoWalkthrough3
-              caseId={caseId}
-              onSwitchCase={(id) => setCaseId(id)}
-              onOpenRel={(id) => openRel(sc.relationships.find((r) => r.id === id) || sc.relationships[0])}
-              onTakeTour={startTour}
-              onShowGraphLab={() => setPart(2)}
-              onReplay={() => { setPart(2); startReplay(); }}
-              onGoVerify={() => onStartVerify && onStartVerify(caseId)}
-            />
 
             <div className="eg-pager">
               <button className={`eg-pager-btn${part === 1 ? ' on' : ''}`} onClick={() => setPart(1)}>
