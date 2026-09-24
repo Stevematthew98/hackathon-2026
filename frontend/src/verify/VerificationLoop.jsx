@@ -12,12 +12,6 @@ const VC = {
 };
 const EC = { UNKNOWN: '#8fa0b8', CONFLICT: '#f87171', SUPPORT: '#34d399' };
 
-const REL_META = {
-  R1: { type: 'CONFLICT', label: 'name vs directory', color: '#f87171' },
-  R2: { type: 'ANOMALY', label: 'number absent from directory', color: '#f0a832' },
-  R4: { type: 'UNKNOWN', label: 'voice cannot be matched', color: '#8fa0b8' },
-};
-
 export default function VerificationLoop({ page, onNav, initialCase = 'digital-arrest', onBack }) {
   const [caseId, setCaseId] = useState(initialCase);
   const [part, setPart] = useState(1);
@@ -47,12 +41,12 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
     [scase, pickedId]
   );
   const edgeState = useMemo(() => {
-    if (outcome && (phase === 'folded' || phase === 'done')) return outcome.effect.to;
+    if (outcome && (phase === 'folded' || phase === 'done')) return outcome.edgeAfter;
     return 'UNKNOWN';
   }, [outcome, phase]);
   const verdictNow = useMemo(() => {
     if (phase === 'stopped') return 'UNRESOLVED';
-    if (outcome && (phase === 'folded' || phase === 'done' || phase === 'received')) return outcome.verdictAfter;
+    if (outcome && (phase === 'folded' || phase === 'done' || phase === 'received')) return outcome.verdict;
     return scase.initialVerdict;
   }, [outcome, phase, scase]);
 
@@ -107,9 +101,9 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
       {
         what: link.historyWhat,
         why: link.historyWhy,
-        effect: o.effect,
-        verdict: { from: scase.initialVerdict, to: o.verdictAfter },
-        result: o.resultLine,
+        effect: { from: 'UNKNOWN', to: o.edgeAfter },
+        verdict: { from: scase.initialVerdict, to: o.verdict },
+        result: o.resultText,
         state: key === 'inconclusive' ? 'Inconclusive' : 'Completed',
         at,
         caseId: scase.caseId,
@@ -265,19 +259,26 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                     ))}
                   </div>
                   <div className="vl-panel-head">Connected evidence relationships</div>
-                  {(scase.relatedRels || []).map((rid) => (
-                    <div key={rid} className="vl-relrow">
-                      <span className="vl-reldot" style={{ background: REL_META[rid].color }} />
-                      <span className="vl-relmain">
-                        <span className="vl-reltitle">{rid}</span>
-                        <span className="vl-relid">{REL_META[rid].label} · from the Evidence Graph</span>
-                      </span>
-                      <span className="vl-typebadge" style={{ background: REL_META[rid].color }}>{REL_META[rid].type}</span>
+                  {(scase.relatedRels || []).map((rid) => {
+                    const rm = scase.relMeta[rid];
+                    return (
+                      <div key={rid} className="vl-relrow">
+                        <span className="vl-reldot" style={{ background: rm.color }} />
+                        <span className="vl-relmain">
+                          <span className="vl-reltitle">{rid}</span>
+                          <span className="vl-relid">{rm.label} · from the Evidence Graph</span>
+                        </span>
+                        <span className="vl-typebadge" style={{ background: rm.color }}>{rm.type}</span>
+                      </div>
+                    );
+                  })}
+                  {pickedId === inspected.id ? (
+                    <div className="vl-panel">
+                      <p className="vl-note" style={{ margin: 0 }}>✓ Weakest link selected — continue below.</p>
                     </div>
-                  ))}
-                  {inspected.n === 1 ? (
+                  ) : inspected.n === 1 ? (
                     <button className="vl-btn primary" onClick={() => pickCandidate(inspected.id)}>
-                      {pickedId === inspected.id ? '✓ Weakest link selected' : 'This is the weakest link →'}
+                      This is the weakest link →
                     </button>
                   ) : (
                     <>
@@ -401,7 +402,7 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                 <div className="vl-outcomes">
                   {Object.entries(link.outcomes).map(([key, o]) => (
                     <button key={key} className="vl-btn outcome" onClick={() => chooseOutcome(key)}>
-                      <b>{o.buttonLabel}</b>
+                      <b>{o.label}</b>
                       <span className="vl-why-go">▸</span>
                     </button>
                   ))}
@@ -415,11 +416,11 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                 <div className="vl-stepnum">Step 3 · Fold it in</div>
                 <div className="vl-resline">
                   <span>Source</span>
-                  <b>{outcome.source}</b>
+                  <b>{outcome.sourceType}</b>
                 </div>
                 <div className="vl-resline">
                   <span>Result</span>
-                  <b>{outcome.resultLine}</b>
+                  <b>{outcome.resultText}</b>
                 </div>
                 <p className="vl-note">This is new evidence. Fold it into the graph to update the relationship.</p>
                 <button className="vl-btn primary" onClick={() => { setFlipKey((k) => k + 1); setPhase('folded'); }}>
@@ -434,9 +435,9 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                 <div className="vl-grapheffect">
                   <span className="vl-ge-label">Graph effect</span>
                   <span className="vl-ge-flow">
-                    <span className="vl-typebadge" style={{ background: EC[outcome.effect.from] }}>{outcome.effect.from}</span>
+                    <span className="vl-typebadge" style={{ background: EC.UNKNOWN }}>UNKNOWN</span>
                     <span className="vl-ge-arrow">→</span>
-                    <span className="vl-typebadge" style={{ background: EC[outcome.effect.to] }}>{outcome.effect.to}</span>
+                    <span className="vl-typebadge" style={{ background: EC[outcome.edgeAfter] }}>{outcome.edgeAfter}</span>
                   </span>
                 </div>
                 <p className="vl-note">The relationship is updated. Now recompute what the case means.</p>
@@ -452,11 +453,11 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                   <div className="vl-recomputed">CASE RECOMPUTED</div>
                   <div className="vl-statusrow big">
                     <span className="vl-status-label">Verdict</span>
-                    <span className="vl-verdict" style={{ color: VC[outcome.verdictAfter], borderColor: VC[outcome.verdictAfter] }}>
-                      {outcome.verdictAfter}
+                    <span className="vl-verdict" style={{ color: VC[outcome.verdict], borderColor: VC[outcome.verdict] }}>
+                      {outcome.verdict}
                     </span>
                   </div>
-                  <p className="vl-note">{outcome.explanation}</p>
+                  <p className="vl-note">{outcome.verdictNote}</p>
                   <div className="vl-nextaction">
                     <div className="vl-panel-head">Next safest action</div>
                     <p className="vl-note" style={{ margin: 0 }}>{outcome.nextAction}</p>
@@ -500,12 +501,12 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                   {showProv && (
                     <div className="vl-prov">
                       {[
-                        ['Claim', `Caller claims: ${link.chain.nodes[1]} — ${link.chain.edgeLabel.toLowerCase()} ${outcome.effect.from.toLowerCase()}`],
+                        ['Claim', `Caller claims: ${link.chain.nodes[1]} — ${link.chain.edgeLabel.toLowerCase()} ${'unknown'}`],
                         ['Question', link.question],
                         ['Verification', link.recommendation.action],
-                        ['Result', `${outcome.source} — ${outcome.resultLine}`],
-                        ['Graph effect', `${link.chain.edgeLabel}: ${outcome.effect.from} → ${outcome.effect.to}`],
-                        ['Verdict effect', `${prevVerdict || scase.initialVerdict} → ${outcome.verdictAfter}`],
+                        ['Result', `${outcome.sourceType} — ${outcome.resultText}`],
+                        ['Graph effect', `${link.chain.edgeLabel}: ${'UNKNOWN'} → ${outcome.edgeAfter}`],
+                        ['Verdict effect', `${prevVerdict || scase.initialVerdict} → ${outcome.verdict}`],
                       ].map(([k, v]) => (
                         <div key={k} className="vl-prov-row">
                           <span>{k}</span>
@@ -519,8 +520,8 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                 <div className="vl-card">
                   <div className="vl-card-head">Case status</div>
                   <div className="vl-statusrow">
-                    <span className="vl-verdict" style={{ color: VC[outcome.verdictAfter], borderColor: VC[outcome.verdictAfter] }}>
-                      {outcome.verdictAfter}
+                    <span className="vl-verdict" style={{ color: VC[outcome.verdict], borderColor: VC[outcome.verdict] }}>
+                      {outcome.verdict}
                     </span>
                   </div>
                   <div className="vl-statusgrid">
@@ -530,11 +531,11 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                     </div>
                     <div>
                       <span>Uncertainty</span>
-                      <p>{outcomeKey === 'inconclusive' ? 'Unresolved — further verification needed.' : `Resolved via independent verification (${outcome.effect.to}).`}</p>
+                      <p>{outcomeKey === 'inconclusive' ? 'Unresolved — further verification needed.' : `Resolved via independent verification (${outcome.edgeAfter}).`}</p>
                     </div>
                     <div>
                       <span>Independent verification</span>
-                      <p>{outcome.source} · {history.length ? history[history.length - 1].at : ''}</p>
+                      <p>{outcome.sourceType} · {history.length ? history[history.length - 1].at : ''}</p>
                     </div>
                     <div>
                       <span>Next safest action</span>
