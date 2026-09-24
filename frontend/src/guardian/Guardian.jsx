@@ -58,7 +58,7 @@ export default function Guardian() {
   const [casePayload, setCasePayload] = useState(null);
   // pro upgrades
   const [trace, setTrace] = useState([]);
-  const [traceOpen, setTraceOpen] = useState(true);
+  const [traceOpen, setTraceOpen] = useState(false);
   const [stats, setStats] = useState(loadStats);
   const [caseTab, setCaseTab] = useState('overview');
 
@@ -113,11 +113,18 @@ export default function Guardian() {
   }, [phase]);
 
   // ---- tripwire: 4+ signals start an investigation. Never a verdict. ----
+  // CORRECTION 1: the case is created IMMEDIATELY here — before any tap.
+  // Tapping the notification later only OPENS the already-created case.
   useEffect(() => {
     if (fired.length >= TRIPWIRE_THRESHOLD && !tripwire) {
       setTripwire(true);
+      const snap = buildCaseSnapshot();
+      setClaim(snap.claimedIdentity);
+      setFinalDuration(snap.durationSec);
+      setCasePayload(snap);
+      saveCaseToServer(snap);
+      pushTrace([{ t: timeRef.current, kind: 'trip', text: `TRIPWIRE · ${snap.signals.length}/5 signals — case ${snap.id} created, no verdict` }]);
       setSheetOpen(true);
-      pushTrace([{ t: timeRef.current, kind: 'trip', text: `TRIPWIRE · ${fired.length}/${TRIPWIRE_THRESHOLD + 1} signals — opening case, no verdict` }]);
       try { navigator.vibrate && navigator.vibrate(40); } catch { /* noop */ }
     }
   }, [fired, tripwire]);
@@ -166,6 +173,43 @@ export default function Guardian() {
       .catch(() => setServerSave('local'));
   };
 
+  // Builds the case object from the live event. Called the instant the
+  // tripwire fires — the case exists before the user taps anything.
+  const buildCaseSnapshot = () => {
+    const eng = engineRef.current;
+    return {
+      id: caseId,
+      createdAt: casePayload?.createdAt || new Date().toISOString(),
+      durationSec: Math.floor(timeRef.current),
+      numberMasked: CALLER_NUMBER_MASKED,
+      claimedIdentity: eng ? eng.getClaim() : null,
+      signals: fired,
+      transcript: CALL_SCRIPT.filter((l) => l.t <= timeRef.current),
+    };
+  };
+
+  const recordStats = (wasTripwire, signalCount) => {
+    setStats((s) => {
+      const n = { calls: s.calls + 1, cases: s.cases + (wasTripwire ? 1 : 0), signals: s.signals + signalCount };
+      try { localStorage.setItem('tg-stats-v1', JSON.stringify(n)); } catch { /* noop */ }
+      return n;
+    });
+  };
+
+  // Tapping the notification only OPENS the already-created case.
+  const openCase = () => {
+    const snap = buildCaseSnapshot();
+    setClaim(snap.claimedIdentity);
+    setFinalDuration(snap.durationSec);
+    setCasePayload(snap);
+    saveCaseToServer(snap);
+    recordStats(true, snap.signals.length);
+    pushTrace([{ t: timeRef.current, kind: 'trip', text: `case ${snap.id} opened by user · snapshot finalized` }]);
+    setSheetOpen(false);
+    setPlaying(false);
+    setPhase('case');
+  };
+
   const answer = () => {
     engineRef.current = createEngine({ callerUnknown: true });
     const initial = engineRef.current.start(0);
@@ -197,32 +241,22 @@ export default function Guardian() {
   };
 
   const endCall = () => {
-    const eng = engineRef.current;
-    const dur = Math.floor(timeRef.current);
-    const c = eng ? eng.getClaim() : null;
-    setFinalDuration(dur);
-    setClaim(c);
-    setPlaying(false);
-    setStats((s) => {
-      const n = { calls: s.calls + 1, cases: s.cases + (tripwire ? 1 : 0), signals: s.signals + fired.length };
-      try { localStorage.setItem('tg-stats-v1', JSON.stringify(n)); } catch { /* noop */ }
-      return n;
-    });
     if (tripwire) {
-      const payload = {
-        id: caseId,
-        createdAt: new Date().toISOString(),
-        durationSec: dur,
-        numberMasked: CALLER_NUMBER_MASKED,
-        claimedIdentity: c,
-        signals: fired,
-        transcript: CALL_SCRIPT.filter((l) => l.t <= timeRef.current),
-      };
-      setCasePayload(payload);
-      pushTrace([{ t: timeRef.current, kind: 'trip', text: `case ${caseId} built · ${fired.length} signals · persisting to server` }]);
-      saveCaseToServer(payload);
+      // The case already exists (created at tripwire); refresh it with the
+      // complete event and re-sync. endCall() never creates the case.
+      const snap = buildCaseSnapshot();
+      setClaim(snap.claimedIdentity);
+      setFinalDuration(snap.durationSec);
+      setCasePayload(snap);
+      saveCaseToServer(snap);
+      recordStats(true, snap.signals.length);
+      pushTrace([{ t: timeRef.current, kind: 'trip', text: `event ended · case ${snap.id} finalized with full transcript` }]);
       setPhase('case');
     } else {
+      setClaim(engineRef.current ? engineRef.current.getClaim() : null);
+      setFinalDuration(Math.floor(timeRef.current));
+      setPlaying(false);
+      recordStats(false, fired.length);
       // Privacy rule: no tripwire → captured audio/transcript discarded immediately.
       setPhase('discarded');
     }
@@ -236,17 +270,16 @@ export default function Guardian() {
     showToast('Case deleted — everything captured was discarded.');
   };
 
-  const caseLines = useMemo(
-    () => CALL_SCRIPT.filter((l) => l.t <= finalDuration),
-    [finalDuration]
-  );
-
   const TABS = [
     { id: 'overview', label: 'Overview' },
-    { id: 'signals', label: `Signals · ${fired.length}` },
+    { id: 'signals', label: `Signals · ${casePayload?.signals.length ?? 0}` },
     { id: 'transcript', label: 'Transcript' },
     { id: 'data', label: 'Data' },
   ];
+
+  // The case rendered below is the object created at tripwire time,
+  // refreshed when the event ended. Tapping "Tap to check" only opens it.
+  const cp = casePayload;
 
   // ---------------- screens ----------------
   return (
@@ -320,8 +353,12 @@ export default function Guardian() {
                 </button>
                 {!permission && <p className="g-warn">Grant permission to enable protection.</p>}
                 <p className="g-fine">
-                  Prototype simulation — no real calls are intercepted. Event-only:
-                  nothing is captured between calls.
+                  Prototype — telecom capture is simulated; this page does not
+                  intercept real calls. Event-only processing: analysis runs only
+                  while the event is active. No tripwire → captured audio and
+                  transcript are discarded — nothing stored, nothing sent. A
+                  created case holds exactly what is shown to you, and is sent to
+                  the TrustGuard demo server.
                 </p>
               </div>
             )}
@@ -362,7 +399,7 @@ export default function Guardian() {
 
                 {tripwire && !sheetOpen && (
                   <button className="g-trip-banner" onClick={() => setSheetOpen(true)}>
-                    <span className="g-trip-dot" />Suspicious pattern detected — tap to view
+                    <span className="g-trip-dot" />Suspicious pattern detected — tap to check
                   </button>
                 )}
 
@@ -429,14 +466,14 @@ export default function Guardian() {
                       <div className="g-sheet-grip" />
                       <div className="g-sheet-kicker"><span className="g-trip-dot" />Pattern detected · {fmt(callTime)}</div>
                       <h2>Suspicious pattern detected</h2>
-                      <p>We’ve saved everything so far. Check when you’re ready — or keep listening.</p>
+                      <p>TrustGuard started a case from this call.</p>
                       <div className="g-sheet-signals">
                         {fired.map((f) => (
                           <span key={f.id} className="g-sheet-chip">✓ {f.label}</span>
                         ))}
                       </div>
                       <p className="g-sheet-micro">This is not a verdict. It’s the start of a check.</p>
-                      <button className="g-primary" onClick={endCall}>View case</button>
+                      <button className="g-primary" onClick={openCase}>Tap to check</button>
                       <button className="g-ghost" onClick={() => setSheetOpen(false)}>Not now</button>
                     </div>
                   </>
@@ -445,12 +482,12 @@ export default function Guardian() {
             )}
 
             {/* ============ CASE ============ */}
-            {phase === 'case' && (
+            {phase === 'case' && cp && (
               <div className="g-pane g-fade g-case">
                 <div className="g-case-head">
                   <div>
-                    <div className="g-case-id">{caseId}</div>
-                    <div className="g-case-time">{todayStamp()} · {fmt(finalDuration)} call</div>
+                    <div className="g-case-id">{cp.id}</div>
+                    <div className="g-case-time">{new Date(cp.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} · {fmt(cp.durationSec)} call</div>
                     <div className="g-sync">
                       {serverSave === 'saving' && 'Saving to TrustGuard server…'}
                       {serverSave === 'saved' && `Saved to TrustGuard server${saveMeta ? ` · ${saveMeta.ms}ms` : ''}`}
@@ -479,13 +516,13 @@ export default function Guardian() {
                         <div className="g-card-title">Claimed identity</div>
                         <span className="g-chip unverified">Unverified claim</span>
                       </div>
-                      {claim ? (
+                      {cp.claimedIdentity ? (
                         <>
                           <p className="g-claim-text">
-                            Caller claimed to be <b>{claim.title ? claim.title + ' ' : ''}{claim.name}</b>
-                            {claim.org ? <>, {claim.org}</> : null}
+                            Caller claimed to be <b>{cp.claimedIdentity.title ? cp.claimedIdentity.title + ' ' : ''}{cp.claimedIdentity.name}</b>
+                            {cp.claimedIdentity.org ? <>, {cp.claimedIdentity.org}</> : null}
                           </p>
-                          <p className="g-fine">“{claim.quote}” · {fmt(claim.t)}</p>
+                          <p className="g-fine">“{cp.claimedIdentity.quote}” · {fmt(cp.claimedIdentity.t)}</p>
                         </>
                       ) : (
                         <p className="g-fine">No identity claim extracted from this call.</p>
@@ -512,10 +549,10 @@ export default function Guardian() {
                         </button>
                         <div className="g-wave" aria-hidden="true">
                           {WAVEFORM.map((h, i) => (
-                            <span key={i} style={{ height: `${h}%` }} className={i / WAVEFORM.length <= playPos / Math.max(finalDuration, 1) ? 'on' : ''} />
+                            <span key={i} style={{ height: `${h}%` }} className={i / WAVEFORM.length <= playPos / Math.max(cp.durationSec, 1) ? 'on' : ''} />
                           ))}
                         </div>
-                        <span className="g-play-t">{fmt(playPos)} / {fmt(finalDuration)}</span>
+                        <span className="g-play-t">{fmt(playPos)} / {fmt(cp.durationSec)}</span>
                       </div>
                       <p className="g-fine">Simulated playback · never autoplayed</p>
                     </div>
@@ -524,8 +561,8 @@ export default function Guardian() {
 
                 {caseTab === 'signals' && (
                   <div className="g-card">
-                    <div className="g-card-title">Signals that fired · {fired.length} of 5</div>
-                    {fired.map((f) => (
+                    <div className="g-card-title">Signals that fired · {cp.signals.length} of 5</div>
+                    {cp.signals.map((f) => (
                       <div key={f.id} className="g-ev-signal">
                         <div className="g-ev-head"><span className="g-signal-box hit sm">✓</span><b>{f.label}</b><span className="g-signal-t">{fmt(f.t)}</span></div>
                         <div className="g-signal-hint">{f.hint}</div>
@@ -540,7 +577,7 @@ export default function Guardian() {
                   <div className="g-card">
                     <div className="g-card-title">Transcript</div>
                     <div className="g-full-transcript" style={{ maxHeight: 'none' }}>
-                      {caseLines.map((l, i) => (
+                      {cp.transcript.map((l, i) => (
                         <div key={i} className={`g-line ${l.speaker}`}>
                           <span className="g-who">{l.speaker === 'caller' ? 'Caller' : 'You'} · {fmt(l.t)}</span>
                           <p>{l.text}</p>
@@ -554,7 +591,7 @@ export default function Guardian() {
                   <>
                     <div className="g-card">
                       <div className="g-card-title">Case object</div>
-                      <pre className="g-json">{JSON.stringify(casePayload, null, 2)}</pre>
+                      <pre className="g-json">{JSON.stringify(cp, null, 2)}</pre>
                     </div>
                     <div className="g-card">
                       <div className="g-card-title">Backend sync</div>
@@ -568,7 +605,7 @@ export default function Guardian() {
 
                 <div className="g-card g-transp">
                   <div className="g-card-title">What was captured</div>
-                  <p>Audio, transcript, number, time. Nothing else — and nothing between calls.</p>
+                  <p>Audio, transcript, number, time. Nothing else — and nothing between calls. Prototype: the case is sent to the TrustGuard demo server.</p>
                   {!confirmDelete ? (
                     <button className="g-danger-ghost" onClick={() => setConfirmDelete(true)}>Delete case</button>
                   ) : (

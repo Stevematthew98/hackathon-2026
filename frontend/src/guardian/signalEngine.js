@@ -108,9 +108,9 @@ export function createEngine({ callerUnknown }) {
           const m = line.text.match(CLAIM_RE);
           if (m) {
             claim = {
-              name: titleCase(m[3]),
+              name: titleCase(m[2]),
               title: m[1] ? titleCase(m[1]) : null,
-              org: titleCase(m[4]),
+              org: titleCase(m[3]),
               quote: line.text,
               t: line.t,
             };
