@@ -13,6 +13,7 @@ import { VERIFY_CASES } from '../verify/verifyScenarios';
 import { buildDecision, DECISION_IDS, VERDICTS } from './decisionEngine';
 import { resetVerificationState } from '../shared/caseStore';
 import { downloadReport } from './reportExport';
+import DemoWalkthrough from './DemoWalkthrough';
 import './DecisionOutput.css';
 
 const EC = { UNKNOWN: '#8fa0b8', CONFLICT: '#f87171', SUPPORT: '#34d399', ANOMALY: '#f0a832' };
@@ -190,6 +191,14 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
           </div>
           <p className="do-assess-note">Assessment based on available evidence</p>
         </div>
+
+        {/* DEMO WALKTHROUGH — additive guided script (Idea 5 only) */}
+        <DemoWalkthrough
+          caseId={caseId}
+          verdict={d.verdict}
+          onSwitchCase={switchCase}
+          onGoVerify={() => onContinueVerify(caseId)}
+        />
 
         {/* 1 — FINAL DECISION */}
         <div className="do-card do-decision" style={{ borderColor: vm.color }}>
