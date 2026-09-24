@@ -228,3 +228,15 @@
 .eg-wb-result.none { border-style: dashed; }
 .eg-wb-result.mismatch { border-color: #6b5426; }
 .eg-spinner.sm { width: 14px; height: 14px; border-width: 2px; }
+
+/* part pager: Page 3 split into two screens */
+.eg-pager { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 2px; }
+.eg-pager-btn {
+  background: #0d141d; border: 1px solid #2a3a4f; border-radius: 12px;
+  padding: 9px; cursor: pointer; font-family: inherit;
+  display: flex; flex-direction: column; gap: 2px; align-items: center;
+}
+.eg-pager-btn b { color: #dbe7f7; font-size: 13px; }
+.eg-pager-btn span { color: #7f8ea3; font-size: 11px; }
+.eg-pager-btn.on { border-color: #60a5fa; background: #16202f; }
+.eg-pager-btn.on b { color: #fff; }

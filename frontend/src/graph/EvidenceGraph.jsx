@@ -53,24 +53,33 @@ export default function EvidenceGraph({ page, onNav }) {
   const [backendCount, setBackendCount] = useState(null);
   const [seam, setSeam] = useState(null); // null | 'weakest' | 'next'
   const [tour, setTour] = useState(null); // null | step index
+  const [part, setPart] = useState(1); // 1 = relationships, 2 = graph lab
   const [glowKey, setGlowKey] = useState(null);
   const [replay, setReplay] = useState(null); // null | {idx, playing}
   const [flashRels, setFlashRels] = useState([]);
   const [nodePos, setNodePos] = useState(() => Object.fromEntries(sc.nodes.map((n) => [n.id, { x: n.x, y: n.y }])));
   const timers = useRef([]);
   const secRefs = useRef({});
+  const screenRef = useRef(null);
   const tickerRef = useRef(null);
   const dragRef = useRef(null);
   const clickSuppress = useRef(false);
   const glowTimer = useRef(null);
 
+  const finishExtraction = () => {
+    timers.current.forEach((c) => c());
+    timers.current = [];
+    setShownClaims(sc.claims.length);
+    setExtracting(false);
+  };
+
   const TOUR = [
-    { key: 'extract', title: 'Claims are extracted', body: 'Watch raw words become structured claims. The AI only translates — it never decides truth.', act: null },
-    { key: 'claims', title: 'Every claim is inspectable', body: 'Tap any claim card. Its source, evidence location and extraction method are on record.', act: 'claim' },
-    { key: 'divider', title: 'Two different machines', body: 'AI extraction structures the words. Deterministic checks compare those structures with fixed rules.', act: null },
-    { key: 'list', title: 'Relationships are the core', body: 'The list is the investigation. Every row carries a full birth certificate — open R1 and look.', act: 'rel' },
-    { key: 'graph', title: 'The graph supports the list', body: 'Drag the nodes. Filter edge types. Press Replay analysis to watch each check run in order.', act: null },
-    { key: 'interp', title: 'The weakest link decides what’s next', body: 'Unresolved evidence points at the next check — that is where the Verification Loop begins.', act: 'seam' },
+    { key: 'extract', part: 1, title: 'Claims are extracted', body: 'Watch raw words become structured claims. The AI only translates — it never decides truth.', act: null },
+    { key: 'claims', part: 1, title: 'Every claim is inspectable', body: 'Tap any claim card. Its source, evidence location and extraction method are on record.', act: 'claim' },
+    { key: 'divider', part: 1, title: 'Two different machines', body: 'AI extraction structures the words. Deterministic checks compare those structures with fixed rules.', act: null },
+    { key: 'list', part: 1, title: 'Relationships are the core', body: 'The list is the investigation. Every row carries a full birth certificate — open R1 and look.', act: 'rel' },
+    { key: 'graph', part: 2, title: 'The graph supports the list', body: 'Drag the nodes. Filter edge types. Press Replay analysis to watch each check run in order.', act: null },
+    { key: 'interp', part: 1, title: 'The weakest link decides what’s next', body: 'Unresolved evidence points at the next check — that is where the Verification Loop begins.', act: 'seam' },
   ];
 
   const relById = (id) => sc.relationships.find((r) => r.id === id);
@@ -91,6 +100,7 @@ export default function EvidenceGraph({ page, onNav }) {
     setWhyOpen(false);
     setEvOpen(false);
     setTour(null);
+    setPart(1);
     setGlowKey(null);
     setReplay(null);
     setFlashRels([]);
@@ -113,10 +123,11 @@ export default function EvidenceGraph({ page, onNav }) {
   const unknownRels = useMemo(() => sc.relationships.filter((r) => r.type === 'UNKNOWN'), [sc]);
   const weakest = unknownRels[0] || sc.relationships.find((r) => r.type === 'ANOMALY') || null;
 
-  // ---- guided tour ----
+  // ---- guided tour (routes across both parts) ----
   useEffect(() => {
     if (tour === null) return;
     const step = TOUR[tour];
+    if (part !== step.part) { setPart(step.part); return; } // re-runs after the part flips
     setDrawer(null); setWhyOpen(false); setEvOpen(false);
     const el = secRefs.current[step.key];
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -129,15 +140,19 @@ export default function EvidenceGraph({ page, onNav }) {
     if (step.act === 'seam') act = setTimeout(() => setSeam('weakest'), 850);
     return () => { if (act) clearTimeout(act); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tour]);
+  }, [tour, part]);
 
   const startTour = () => {
     if (extracting) {
-      timers.current.forEach((c) => c()); timers.current = [];
-      setShownClaims(sc.claims.length); setExtracting(false);
+      finishExtraction();
       setTimeout(() => setTour(0), 400);
     } else setTour(0);
   };
+
+  // Scroll back to top when the user flips parts manually (not during the tour).
+  useEffect(() => {
+    if (tour === null && screenRef.current) screenRef.current.scrollTo({ top: 0 });
+  }, [part, tour]);
 
   // ---- replay analysis ----
   const relEdges = useMemo(() => sc.edges.filter((e) => !e.neutral), [sc]);
@@ -239,7 +254,7 @@ export default function EvidenceGraph({ page, onNav }) {
       <PageHead page={page} onNav={onNav} label="Page 3 of 5 · The Evidence Graph" />
       <div className="sh-stage">
         <div className="sh-phone">
-          <div className="sh-screen eg-screen">
+          <div className="sh-screen eg-screen" ref={screenRef}>
 
             {/* ---------- case header ---------- */}
             <div className="eg-head">
@@ -269,6 +284,17 @@ export default function EvidenceGraph({ page, onNav }) {
             </div>
             <button className="eg-tour-btn" onClick={startTour}>Take the guided tour · 6 steps</button>
 
+            <div className="eg-pager">
+              <button className={`eg-pager-btn${part === 1 ? ' on' : ''}`} onClick={() => setPart(1)}>
+                <b>Part 1</b><span>Relationships</span>
+              </button>
+              <button className={`eg-pager-btn${part === 2 ? ' on' : ''}`} onClick={() => setPart(2)}>
+                <b>Part 2</b><span>Graph lab</span>
+              </button>
+            </div>
+
+            {part === 1 && (<>
+
             {/* ---------- claim extraction stage ---------- */}
             <section className={`eg-card${glowKey === 'extract' ? ' eg-tour-glow' : ''}`} ref={(el) => { secRefs.current.extract = el; }}>
               <div className="eg-card-head">Extracting claims</div>
@@ -288,7 +314,7 @@ export default function EvidenceGraph({ page, onNav }) {
               </div>
               <p className="eg-note">{sc.extractNote}</p>
               {extracting && (
-                <button className="eg-skip" onClick={() => { timers.current.forEach((c) => c()); timers.current = []; setShownClaims(sc.claims.length); setExtracting(false); }}>
+                <button className="eg-skip" onClick={finishExtraction}>
                   Skip animation
                 </button>
               )}
@@ -323,7 +349,79 @@ export default function EvidenceGraph({ page, onNav }) {
                 </div>
               </section>
 
-              {/* ---------- interactive graph ---------- */}
+              {/* ---------- not averaged ---------- */}
+              <section className="eg-card eg-avg">
+                <div className="eg-card-head">Evidence is not averaged</div>
+                <p className="eg-note">TrustGuard does not blend findings into one score. Every relationship stays individually inspectable.</p>
+                <div className="eg-avg-row">
+                  {sc.relationships.map((r) => (
+                    <span key={r.id} className="eg-avg-chip" style={{ '--rc': REL_META[r.type].color }}>
+                      {r.id} · {r.type}{r.supportLevel === 'weak' ? ' (weak)' : ''} → remains visible
+                    </span>
+                  ))}
+                </div>
+              </section>
+
+              {/* ---------- uncertainty ---------- */}
+              <section className="eg-card">
+                <div className="eg-card-head">Uncertainty</div>
+                {unknownRels.length ? unknownRels.map((r) => (
+                  <button key={r.id} className="eg-unc" onClick={() => openRel(r)}>
+                    <TypeBadge type="UNKNOWN" />
+                    <span className="eg-unc-text">{r.result}</span>
+                    <span className="eg-note">{r.uncertainty}</span>
+                    <span className="eg-rel-go">›</span>
+                  </button>
+                )) : (
+                  <p className="eg-note">No unknowns in this case — every checked relationship resolved against available evidence.</p>
+                )}
+              </section>
+
+              {/* ---------- case interpretation ---------- */}
+              <section className={`eg-card eg-interp${isLegit ? ' ok' : ''}${glowKey === 'interp' ? ' eg-tour-glow' : ''}`} ref={(el) => { secRefs.current.interp = el; }}>
+                <div className="eg-card-head">Case interpretation</div>
+                <p className="eg-interp-line">{sc.interpretation.headline}</p>
+                <p className="eg-interp-counts">{countsLine}</p>
+                <p className="eg-note">{sc.interpretation.note}</p>
+                <p className="eg-note dim">The graph reports relationships. It does not declare scams.</p>
+                {!seam && (
+                  <button className="eg-btn" onClick={() => setSeam('weakest')}>Need more evidence?</button>
+                )}
+                {seam === 'weakest' && (
+                  <div className="eg-seam">
+                    {weakest ? (
+                      <>
+                        <div className="eg-seam-head">Weakest link</div>
+                        <button className="eg-rel" onClick={() => openRel(weakest)}>
+                          <span className="eg-rel-dot" style={{ background: REL_META[weakest.type].color }} />
+                          <span className="eg-rel-main">
+                            <span className="eg-rel-title">{weakest.title}</span>
+                            <span className="eg-rel-id">{weakest.id} · needs independent evidence first</span>
+                          </span>
+                          <TypeBadge type={weakest.type} weak={weakest.supportLevel === 'weak'} />
+                          <span className="eg-rel-go">›</span>
+                        </button>
+                      </>
+                    ) : (
+                      <p className="eg-note">No weak link — every checked relationship resolved against available evidence.</p>
+                    )}
+                    <button className="eg-btn" onClick={() => setSeam('next')}>Find the weakest link</button>
+                  </div>
+                )}
+                {seam === 'next' && (
+                  <div className="eg-seam">
+                    <div className="eg-seam-head">Verification Loop — next stage</div>
+                    <p className="eg-note">Idea 4 will start here: take the weakest link, run one independent check, and update this case. Not built yet.</p>
+                  </div>
+                )}
+              </section>
+
+              <p className="eg-foot">Prototype · simulated case data · relationships shown are illustrative</p>
+            </>)}
+            </>)}
+
+            {part === 2 && (<>
+{/* ---------- interactive graph ---------- */}
               <section className={`eg-card${glowKey === 'graph' ? ' eg-tour-glow' : ''}`} ref={(el) => { secRefs.current.graph = el; }}>
                 <div className="eg-card-head">Evidence graph</div>
                 <div className="eg-replay-row">
@@ -441,75 +539,6 @@ export default function EvidenceGraph({ page, onNav }) {
 
               {/* ---------- check workbench ---------- */}
               <CheckWorkbench key={caseId} sc={sc} onOpenRel={openRel} />
-
-              {/* ---------- not averaged ---------- */}
-              <section className="eg-card eg-avg">
-                <div className="eg-card-head">Evidence is not averaged</div>
-                <p className="eg-note">TrustGuard does not blend findings into one score. Every relationship stays individually inspectable.</p>
-                <div className="eg-avg-row">
-                  {sc.relationships.map((r) => (
-                    <span key={r.id} className="eg-avg-chip" style={{ '--rc': REL_META[r.type].color }}>
-                      {r.id} · {r.type}{r.supportLevel === 'weak' ? ' (weak)' : ''} → remains visible
-                    </span>
-                  ))}
-                </div>
-              </section>
-
-              {/* ---------- uncertainty ---------- */}
-              <section className="eg-card">
-                <div className="eg-card-head">Uncertainty</div>
-                {unknownRels.length ? unknownRels.map((r) => (
-                  <button key={r.id} className="eg-unc" onClick={() => openRel(r)}>
-                    <TypeBadge type="UNKNOWN" />
-                    <span className="eg-unc-text">{r.result}</span>
-                    <span className="eg-note">{r.uncertainty}</span>
-                    <span className="eg-rel-go">›</span>
-                  </button>
-                )) : (
-                  <p className="eg-note">No unknowns in this case — every checked relationship resolved against available evidence.</p>
-                )}
-              </section>
-
-              {/* ---------- case interpretation ---------- */}
-              <section className={`eg-card eg-interp${isLegit ? ' ok' : ''}${glowKey === 'interp' ? ' eg-tour-glow' : ''}`} ref={(el) => { secRefs.current.interp = el; }}>
-                <div className="eg-card-head">Case interpretation</div>
-                <p className="eg-interp-line">{sc.interpretation.headline}</p>
-                <p className="eg-interp-counts">{countsLine}</p>
-                <p className="eg-note">{sc.interpretation.note}</p>
-                <p className="eg-note dim">The graph reports relationships. It does not declare scams.</p>
-                {!seam && (
-                  <button className="eg-btn" onClick={() => setSeam('weakest')}>Need more evidence?</button>
-                )}
-                {seam === 'weakest' && (
-                  <div className="eg-seam">
-                    {weakest ? (
-                      <>
-                        <div className="eg-seam-head">Weakest link</div>
-                        <button className="eg-rel" onClick={() => openRel(weakest)}>
-                          <span className="eg-rel-dot" style={{ background: REL_META[weakest.type].color }} />
-                          <span className="eg-rel-main">
-                            <span className="eg-rel-title">{weakest.title}</span>
-                            <span className="eg-rel-id">{weakest.id} · needs independent evidence first</span>
-                          </span>
-                          <TypeBadge type={weakest.type} weak={weakest.supportLevel === 'weak'} />
-                          <span className="eg-rel-go">›</span>
-                        </button>
-                      </>
-                    ) : (
-                      <p className="eg-note">No weak link — every checked relationship resolved against available evidence.</p>
-                    )}
-                    <button className="eg-btn" onClick={() => setSeam('next')}>Find the weakest link</button>
-                  </div>
-                )}
-                {seam === 'next' && (
-                  <div className="eg-seam">
-                    <div className="eg-seam-head">Verification Loop — next stage</div>
-                    <p className="eg-note">Idea 4 will start here: take the weakest link, run one independent check, and update this case. Not built yet.</p>
-                  </div>
-                )}
-              </section>
-
-              <p className="eg-foot">Prototype · simulated case data · relationships shown are illustrative</p>
             </>)}
 
             {/* ---------- guided tour card ---------- */}
