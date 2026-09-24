@@ -3,11 +3,12 @@ import {
   CALL_SCRIPT,
   CALLER_NUMBER_FULL,
   CALLER_NUMBER_MASKED,
-  CASE_ID,
   SCRIPT_END,
 } from './callScript';
 import { createEngine, TRIPWIRE_THRESHOLD } from './signalEngine';
 import './Guardian.css';
+
+const API = import.meta.env.VITE_API_URL || '';
 
 const WAVEFORM = [
   22, 38, 30, 52, 44, 28, 60, 36, 48, 26, 55, 40, 32, 62, 46, 30, 50, 38, 58, 34,
@@ -43,6 +44,8 @@ export default function Guardian() {
   const [playPos, setPlayPos] = useState(0);
   const [claim, setClaim] = useState(null);
   const [finalDuration, setFinalDuration] = useState(0);
+  const [caseId, setCaseId] = useState(null);
+  const [serverSave, setServerSave] = useState(null); // null | saving | saved | local
 
   const engineRef = useRef(null);
   const timeRef = useRef(0);
@@ -110,6 +113,18 @@ export default function Guardian() {
   );
 
   // ---------------- actions ----------------
+  const saveCaseToServer = (payload) => {
+    if (!API) { setServerSave('local'); return; }
+    setServerSave('saving');
+    fetch(`${API}/api/guardian/cases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then((r) => { if (!r.ok) throw new Error('save failed'); setServerSave('saved'); })
+      .catch(() => setServerSave('local'));
+  };
+
   const answer = () => {
     engineRef.current = createEngine({ callerUnknown: true });
     const initial = engineRef.current.start(0);
@@ -126,15 +141,30 @@ export default function Guardian() {
     setNumberRevealed(false);
     setConfirmDelete(false);
     setExpandedSignal(null);
+    setCaseId('TG-2026-' + Math.floor(1000 + Math.random() * 9000));
+    setServerSave(null);
     setPhase('live');
   };
 
   const endCall = () => {
     const eng = engineRef.current;
-    setFinalDuration(Math.floor(timeRef.current));
-    setClaim(eng ? eng.getClaim() : null);
+    const dur = Math.floor(timeRef.current);
+    const c = eng ? eng.getClaim() : null;
+    setFinalDuration(dur);
+    setClaim(c);
     setPlaying(false);
     if (tripwire) {
+      // Persist the auto-built case to the TrustGuard backend for the
+      // later pipeline stages (graph → verification → verdict → report).
+      saveCaseToServer({
+        id: caseId,
+        createdAt: new Date().toISOString(),
+        durationSec: dur,
+        numberMasked: CALLER_NUMBER_MASKED,
+        claimedIdentity: c,
+        signals: fired,
+        transcript: CALL_SCRIPT.filter((l) => l.t <= timeRef.current),
+      });
       setPhase('case');
     } else {
       // Privacy rule: no tripwire → captured audio/transcript discarded immediately.
@@ -323,8 +353,13 @@ export default function Guardian() {
               <div className="g-pane g-fade g-case">
                 <div className="g-case-head">
                   <div>
-                    <div className="g-case-id">{CASE_ID}</div>
+                    <div className="g-case-id">{caseId}</div>
                     <div className="g-case-time">{todayStamp()} · {fmt(finalDuration)} call</div>
+                    <div className="g-sync">
+                      {serverSave === 'saving' && 'Saving to TrustGuard server…'}
+                      {serverSave === 'saved' && 'Saved to TrustGuard server'}
+                      {serverSave === 'local' && 'Saved on this device'}
+                    </div>
                   </div>
                   <span className="g-chip review">Under review</span>
                 </div>

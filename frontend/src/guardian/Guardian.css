@@ -236,6 +236,7 @@ button.g-card-row { cursor: pointer; }
 .g-case-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
 .g-case-id { font-size: 19px; font-weight: 750; color: #f2f5f9; letter-spacing: -0.2px; }
 .g-case-time { font-size: 12.5px; color: #8b95a5; margin-top: 3px; }
+.g-sync { font-size: 11.5px; color: #34d399; margin-top: 4px; font-weight: 600; }
 .g-chip { font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .7px; padding: 6px 11px; border-radius: 999px; white-space: nowrap; }
 .g-chip.review { background: rgba(245,158,11,.13); color: #fbbf24; border: 1px solid rgba(245,158,11,.4); }
 .g-chip.unverified { background: rgba(96,165,250,.12); color: #9cc2ff; border: 1px solid rgba(96,165,250,.4); }
