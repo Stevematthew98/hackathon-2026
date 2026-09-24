@@ -41,7 +41,7 @@ export function TypeBadge({ type, weak }) {
   );
 }
 
-export default function EvidenceGraph({ page, onNav }) {
+export default function EvidenceGraph({ page, onNav, onStartVerify }) {
   const [caseId, setCaseId] = useState('digital-arrest');
   const sc = CASES[caseId];
   const [extracting, setExtracting] = useState(true);
@@ -411,7 +411,10 @@ export default function EvidenceGraph({ page, onNav }) {
                 {seam === 'next' && (
                   <div className="eg-seam">
                     <div className="eg-seam-head">Verification Loop — next stage</div>
-                    <p className="eg-note">Idea 4 will start here: take the weakest link, run one independent check, and update this case. Not built yet.</p>
+                    <p className="eg-note">Take the weakest link, run one independent check, and fold the result back into this case.</p>
+                    <button className="eg-btn" onClick={() => onStartVerify && onStartVerify(caseId)}>
+                      Start Verification Loop →
+                    </button>
                   </div>
                 )}
               </section>
