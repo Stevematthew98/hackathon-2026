@@ -210,12 +210,8 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
             <div className="vl-card">
               <div className="vl-card-head">Why verification is needed</div>
               <VerifyChain
-                nodes={link.chain.nodes}
-                connectors={link.chain.connectors}
-                edgeLabel={link.chain.edgeLabel}
-                edgeState="UNKNOWN"
-                flipKey={flipKey}
-                clickable
+                chain={link.chain}
+                edgeType="UNKNOWN"
                 onEdgeClick={() => setShowWhyMatters((v) => !v)}
               />
               {showWhyMatters && (
@@ -373,11 +369,9 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                 )}
               </p>
               <VerifyChain
-                nodes={link.chain.nodes}
-                connectors={link.chain.connectors}
-                edgeLabel={link.chain.edgeLabel}
-                edgeState={edgeState}
-                flipKey={flipKey}
+                chain={link.chain}
+                edgeType={edgeState}
+                animating={phase === 'folded' || phase === 'done'}
                 compact
               />
             </div>
