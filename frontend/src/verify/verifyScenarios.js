@@ -178,6 +178,15 @@ export const VERIFY_CASES = {
         historyWhy: 'Next weakest link after the officer check was inconclusive',
       },
     ],
+    quiz: {
+      prompt: 'The caller gave you a phone number and a website link. Which source can you actually trust for this check?',
+      options: [
+        { label: 'The phone number the caller gave you', correct: false, why: 'Controlled by the claimant. If the caller is lying, this number reaches the lie.' },
+        { label: 'The link in the caller\u2019s SMS', correct: false, why: 'Also supplied by the claimant — same problem, different shape.' },
+        { label: 'The Cyber Crime Branch number from the official police website', correct: true, why: 'Published by the department itself. The caller cannot change it, spoof it, or intercept it.' },
+        { label: 'A number the caller\u2019s \u201ccolleague\u201d confirms', correct: false, why: 'Still traces back to the claimant\u2019s circle. A second voice is not a second source.' },
+      ],
+    },
   },
 
   'legit-bank': {
@@ -228,6 +237,15 @@ export const VERIFY_CASES = {
         historyWhy: 'Load-bearing claim: every reassuring signal depends on it',
       },
     ],
+    quiz: {
+      prompt: 'Your phone screen says the call is from the bank. Which source can you actually trust for this check?',
+      options: [
+        { label: 'The name on your phone screen — it says the bank', correct: false, why: 'Caller ID can be spoofed. A label on your screen is a claim, not evidence.' },
+        { label: 'The number the caller asks you to dial', correct: false, why: 'Supplied by the claimant. Same problem as trusting the caller directly.' },
+        { label: 'The number printed on the back of your bank card', correct: true, why: 'Issued by the bank and in your hand before this call existed. The caller cannot touch it.' },
+        { label: 'The bank\u2019s number from a sponsored search result', correct: false, why: 'Ads can be faked. Use the card, or type the bank\u2019s official site address yourself.' },
+      ],
+    },
   },
 };
 

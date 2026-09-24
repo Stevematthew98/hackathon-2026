@@ -220,3 +220,56 @@
 .vl-statusgrid p { margin: 6px 0 0; color: #c6d2e2; font-size: 12.5px; line-height: 1.5; }
 
 .vl-foot { text-align: center; color: #5f6e84; font-size: 11px; padding: 14px 20px 22px; }
+
+/* part pager (mirrors Page 3's two-part split) */
+.vl-pager { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0 4px; }
+.vl-partbtn {
+  background: #0d141d; border: 1px solid #2a3a4f; border-radius: 12px;
+  padding: 10px 8px; color: #8fa0b8; font-size: 12.5px; cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.vl-partbtn.on { border-color: #f0a832; color: #fff; background: #171208; }
+.vl-partbtn:disabled { opacity: 0.45; cursor: not-allowed; }
+.vl-partnum {
+  width: 20px; height: 20px; border-radius: 50%; background: #24344a;
+  color: #dbe7f7; font-size: 11px; font-weight: 800;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.vl-partbtn.on .vl-partnum { background: #f0a832; color: #14100a; }
+
+/* weakest-link candidate picker */
+.vl-cands { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.vl-cand {
+  width: 100%; background: #0d141d; border: 1px solid #24344a; border-radius: 12px;
+  padding: 12px; cursor: pointer; font-family: inherit; text-align: left;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+}
+.vl-cand.open { border-color: #5a3d16; }
+.vl-cand.picked { border-color: #f0a832; background: #171208; }
+.vl-cand-q { color: #eaf1fa; font-size: 14px; font-style: italic; line-height: 1.5; }
+.vl-cand-go { color: #5f6e84; font-size: 13px; flex-shrink: 0; }
+
+/* independence quiz */
+.vl-quiz { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.vl-quiz-opt {
+  width: 100%; background: #0d141d; border: 1px solid #24344a; border-radius: 12px;
+  padding: 12px; cursor: pointer; font-family: inherit; text-align: left;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.vl-quiz-opt:disabled { cursor: default; }
+.vl-quiz-label { color: #eaf1fa; font-size: 13.5px; line-height: 1.45; }
+.vl-quiz-opt.right { border-color: #34d399; background: rgba(52, 211, 153, 0.07); }
+.vl-quiz-opt.right-dim { border-color: rgba(52, 211, 153, 0.4); }
+.vl-quiz-opt.wrong { border-color: #f87171; background: rgba(248, 113, 113, 0.06); }
+.vl-quiz-why { color: #b9c6d8; font-size: 12.5px; line-height: 1.55; }
+
+/* guided check steps */
+.vl-stepcard { border-color: #1f4d3a; }
+.vl-stepnum {
+  color: #34d399; font-weight: 800; letter-spacing: 1.5px; font-size: 12px;
+  text-transform: uppercase; margin-bottom: 8px;
+}
+.vl-linkbtn {
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  color: #7fb3f0; font-size: 12.5px; padding: 0 0 0 6px;
+}
