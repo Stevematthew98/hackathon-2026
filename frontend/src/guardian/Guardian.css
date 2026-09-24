@@ -15,27 +15,6 @@
   box-sizing: border-box;
 }
 
-/* ---------- top bar ---------- */
-.g-page-head {
-  width: min(460px, 100%);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 18px;
-}
-.g-brand { display: flex; align-items: center; gap: 9px; }
-.g-logo {
-  width: 34px; height: 34px; border-radius: 11px;
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  color: #1a1206; display: grid; place-items: center;
-  box-shadow: 0 4px 18px rgba(245, 158, 11, 0.35);
-}
-.g-brand-name { font-weight: 700; font-size: 17px; letter-spacing: -0.2px; }
-.g-pages { display: flex; align-items: center; gap: 6px; }
-.g-dot { width: 8px; height: 8px; border-radius: 50%; background: #2b3442; }
-.g-dot.on { background: #f59e0b; box-shadow: 0 0 10px rgba(245,158,11,.8); }
-.g-page-label { font-size: 11.5px; color: #8b95a5; margin-left: 6px; }
-
 /* ---------- phone frame ---------- */
 .g-stage { width: min(430px, 100%); }
 .g-phone {
@@ -297,7 +276,6 @@ button.g-card-row { cursor: pointer; }
 
 @media (max-width: 480px) {
   .g-root { padding: 14px 0 30px; }
-  .g-page-head { width: 100%; padding: 0 18px; box-sizing: border-box; }
   .g-stage { width: 100%; }
   .g-phone { border-radius: 0; border-left: 0; border-right: 0; padding: 0; box-shadow: none; }
   .g-notch { display: none; }
@@ -307,13 +285,6 @@ button.g-card-row { cursor: pointer; }
 }
 
 /* ---------- pro upgrades ---------- */
-.g-live-tag {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 10px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
-  color: #f59e0b; background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.35);
-  padding: 5px 10px; border-radius: 999px; margin-left: 10px;
-}
-.g-live-tag .g-pulse { width: 7px; height: 7px; background: #f59e0b; }
 
 .g-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 4px 0 14px; }
 .g-stat {

@@ -1,0 +1,90 @@
+/* ============ TrustGuard shared shell (header + phone frame for pages) ============ */
+
+.sh-root {
+  min-height: 100svh;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #16202e 0%, transparent 60%),
+    radial-gradient(900px 500px at 85% 110%, #1a1610 0%, transparent 55%),
+    #0a0e13;
+  color: #e8ecf1;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 16px 40px;
+  box-sizing: border-box;
+}
+
+/* ---------- top bar (shared by all pages) ---------- */
+.g-page-head {
+  width: min(460px, 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.g-brand { display: flex; align-items: center; gap: 9px; }
+.g-logo {
+  width: 34px; height: 34px; border-radius: 11px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #1a1206; display: grid; place-items: center;
+  box-shadow: 0 4px 18px rgba(245, 158, 11, 0.35);
+}
+.g-brand-name { font-weight: 700; font-size: 17px; letter-spacing: -0.2px; }
+.g-live-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
+  color: #f59e0b; background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.35);
+  padding: 5px 10px; border-radius: 999px; margin-left: 10px;
+}
+.g-live-tag .g-pulse { width: 7px; height: 7px; background: #f59e0b; border-radius: 50%; animation: gPulse 1.6s ease-in-out infinite; }
+@keyframes gPulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
+.g-pages { display: flex; align-items: center; gap: 6px; }
+.g-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #2b3442;
+  border: 0; padding: 0; cursor: pointer;
+}
+.g-dot.on { background: #f59e0b; box-shadow: 0 0 10px rgba(245,158,11,.8); cursor: default; }
+.g-dot:disabled { cursor: default; opacity: .8; }
+button.g-dot:not(:disabled):hover { background: #4a5568; }
+.g-page-label { font-size: 11.5px; color: #8b95a5; margin-left: 6px; }
+
+/* ---------- phone frame (shared) ---------- */
+.sh-stage { width: min(430px, 100%); }
+.sh-phone {
+  position: relative;
+  background: #10151c;
+  border: 1px solid #232c38;
+  border-radius: 52px;
+  padding: 12px;
+  box-shadow:
+    0 30px 80px rgba(0,0,0,.55),
+    0 0 0 8px #05070a,
+    inset 0 0 0 1px #2a3340;
+}
+.sh-notch {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  width: 120px; height: 26px; background: #05070a;
+  border-radius: 0 0 16px 16px; z-index: 5;
+}
+.sh-screen {
+  background: linear-gradient(180deg, #131a23 0%, #0d1219 100%);
+  border-radius: 42px;
+  height: min(800px, calc(100svh - 220px));
+  min-height: 560px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 480px) {
+  .sh-root { padding: 14px 0 30px; }
+  .g-page-head { width: 100%; padding: 0 18px; box-sizing: border-box; }
+  .sh-stage { width: 100%; }
+  .sh-phone { border-radius: 0; border-left: 0; border-right: 0; padding: 0; box-shadow: none; }
+  .sh-notch { display: none; }
+  .sh-screen { border-radius: 0; height: calc(100svh - 170px); }
+}

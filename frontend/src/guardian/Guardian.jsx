@@ -6,6 +6,7 @@ import {
   SCRIPT_END,
 } from './callScript';
 import { createEngine, TRIPWIRE_THRESHOLD, PATTERN_COUNT } from './signalEngine';
+import PageHead from '../PageHead';
 import './Guardian.css';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -36,7 +37,7 @@ function loadStats() {
   }
 }
 
-export default function Guardian() {
+export default function Guardian({ page, onNav }) {
   const [phase, setPhase] = useState('idle'); // idle | incoming | live | case | discarded
   const [permission, setPermission] = useState(true);
   const [callTime, setCallTime] = useState(0);
@@ -284,24 +285,7 @@ export default function Guardian() {
   // ---------------- screens ----------------
   return (
     <div className="g-root">
-      <div className="g-page-head">
-        <div className="g-brand">
-          <span className="g-logo" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-4.3-4.3" />
-            </svg>
-          </span>
-          <span className="g-brand-name">TrustGuard</span>
-          <span className="g-live-tag"><span className="g-pulse" />live prototype</span>
-        </div>
-        <div className="g-pages" aria-label="Prototype pages">
-          {[1, 2, 3, 4, 5].map((n) => (
-            <span key={n} className={`g-dot${n === 1 ? ' on' : ''}`} title={n === 1 ? 'Page 1 · The Case Builds Itself' : `Page ${n} · coming next`} />
-          ))}
-          <span className="g-page-label">Page 1 of 5 · The Case Builds Itself</span>
-        </div>
-      </div>
+      <PageHead page={page} onNav={onNav} label="Page 1 of 5 · The Case Builds Itself" />
 
       <div className="g-stage">
         <div className="g-phone">
