@@ -84,19 +84,25 @@ export default function ForwardCheck({ page, onNav }) {
   const endPress = () => clearTimeout(pressT.current);
 
   // ---------- forward flow ----------
+  // One case per forward: the backend upserts on the same id, so the initial
+  // "checking" record, the analyzed result, and the verification update all
+  // land on the SAME case.
+  const caseSnapshot = (extra) => ({
+    id: sc.caseId.replace('#', '').replace(' ', '-'),
+    kind: 'forward', scenario: scenarioId,
+    createdAt: new Date().toISOString(),
+    bundle: sc.bundle,
+    identities: Object.fromEntries(sc.identities.map((i) => [i.role, { value: i.value, status: i.status }])),
+    signals: [], // backend contract requires signals[]; forward evidence travels in `bundle`
+    ...extra,
+  });
+
   const sendToTrustGuard = () => {
     setScreen('sending');
     later(1500, () => {
       setScreen('tg');
       bumpStats();
-      const payload = {
-        id: sc.caseId.replace('#', '').replace(' ', '-'),
-        kind: 'forward', scenario: scenarioId,
-        createdAt: new Date().toISOString(), status: 'checking',
-        band: null, bundle: sc.bundle,
-        identities: Object.fromEntries(sc.identities.map((i) => [i.role, { value: i.value, status: i.status }])),
-      };
-      saveCase(payload);
+      saveCase(caseSnapshot({ status: 'checking', band: null }));
       // tg chat sequence
       later(700, () => setTgStep(1)); // case card
       later(1700, () => {
@@ -104,13 +110,39 @@ export default function ForwardCheck({ page, onNav }) {
         PIPELINE_STAGES.forEach((_, i) => later(900 * (i + 1), () => setPipe(i + 1)));
       });
       later(1700 + 900 * 6 + 700, () => setTgStep(3)); // sections
-      later(1700 + 900 * 6 + 1600, () => setTgStep(4)); // verdict
+      later(1700 + 900 * 6 + 1600, () => {
+        setTgStep(4); // verdict
+        // Persist the completed analysis on the same case
+        saveCase(caseSnapshot({
+          status: 'analyzed',
+          band: sc.band,
+          reasons: sc.reasons,
+          verifyStep: sc.verifyStep,
+          claims: sc.claims.map((c) => ({ id: c.id, text: c.text, source: c.source, state: c.state })),
+          relationships: sc.relationships.map((r) => ({ id: r.id, type: r.type, title: r.title, result: r.result })),
+        }));
+      });
     });
   };
 
   const doVerify = () => {
     setVerify('done');
+    const finalBand = sc.verification?.resolvesTo || sc.band;
     if (sc.verification?.resolvesTo) setBandOverride(sc.verification.resolvesTo);
+    // Persist the verification outcome on the same case
+    if (sc.verification) {
+      saveCase(caseSnapshot({
+        status: 'verified',
+        band: finalBand,
+        reasons: sc.reasons,
+        verifyStep: sc.verifyStep,
+        verification: {
+          recommended: sc.verification.recommended,
+          simulatedResult: sc.verification.simulatedResult,
+          outcomeNote: sc.verification.outcomeNote,
+        },
+      }));
+    }
   };
 
   const forwardVerdict = () => {
