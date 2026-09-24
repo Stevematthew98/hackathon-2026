@@ -1,17 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import PageHead from '../PageHead';
-import { FORWARDS, analyzeForward } from './forwards';
+import { SCENARIOS, PIPELINE_STAGES, REL_STYLE, bandClass } from './scenarios';
 import './ForwardCheck.css';
 
 const API = import.meta.env.VITE_API_URL || '';
 const STATS_KEY = 'tg-stats-v1';
-
-const ANALYSIS_STEPS = [
-  'Extracting claims',
-  'Classifying pattern',
-  'Checking signals',
-  'Deciding',
-];
 
 function loadStats() {
   try {
@@ -20,42 +13,65 @@ function loadStats() {
 }
 
 async function saveCase(payload) {
-  if (!API) return { ok: false, reason: 'no-api' };
-  const t0 = performance.now();
+  if (!API) return { ok: false };
   try {
     const r = await fetch(`${API}/api/guardian/cases`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    return { ok: r.ok, status: r.status, ms: Math.round(performance.now() - t0) };
-  } catch { return { ok: false, reason: 'network' }; }
+    return { ok: r.ok };
+  } catch { return { ok: false }; }
+}
+
+function Shield({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 2l8 3v6c0 5-3.5 9.5-8 11-4.5-1.5-8-6-8-11V5l8-3z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  );
 }
 
 export default function ForwardCheck({ page, onNav }) {
-  const [phase, setPhase] = useState('pick');
-  const [bundle, setBundle] = useState(null);
-  const [msgs, setMsgs] = useState([]);
-  const [astage, setAstage] = useState(0);
-  const [analysis, setAnalysis] = useState(null);
-  const [trace, setTrace] = useState([]);
-  const [traceOpen, setTraceOpen] = useState(false);
+  const [scenarioId, setScenarioId] = useState('aadhaar');
+  const [screen, setScreen] = useState('family'); // family | forward | sending | tg
+  const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  const [tgStep, setTgStep] = useState(0);
+  const [pipe, setPipe] = useState(0);
+  const [identOpen, setIdentOpen] = useState(false);
+  const [drawer, setDrawer] = useState(null); // {kind:'claim'|'rel', data}
+  const [selNode, setSelNode] = useState(null);
+  const [selEdge, setSelEdge] = useState(null);
+  const [verify, setVerify] = useState('idle'); // idle | open | done
+  const [verdictSent, setVerdictSent] = useState(false);
+  const [bandOverride, setBandOverride] = useState(null);
   const [stats, setStats] = useState(loadStats);
   const timers = useRef([]);
-  const chatEndRef = useRef(null);
-  const t0Ref = useRef(0);
+  const pressT = useRef(null);
+  const endRef = useRef(null);
+  const sc = SCENARIOS[scenarioId];
+  const band = bandOverride || sc.verdict.band;
 
   const later = (ms, fn) => { const id = setTimeout(fn, ms); timers.current.push(id); };
-  const stamp = () => ((performance.now() - t0Ref.current) / 1000).toFixed(1) + 's';
-  const pushMsg = (m) => setMsgs((p) => [...p, { ...m, key: `${Date.now()}-${p.length}-${Math.random().toString(36).slice(2, 6)}` }]);
-  const pushTrace = (kind, text) => setTrace((p) => [...p, { t: stamp(), kind, text }]);
+  const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
 
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [msgs, astage]);
+  useEffect(() => () => { clearTimers(); clearTimeout(pressT.current); }, []);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [screen, tgStep, pipe, verify, verdictSent, menuOpen]);
   useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(null), 2600); return () => clearTimeout(id); }, [toast]);
 
-  const bumpForwards = () => {
+  const reset = (id) => {
+    clearTimers();
+    setScenarioId(id || scenarioId);
+    setScreen('family');
+    setMenuOpen(false);
+    setTgStep(0); setPipe(0); setIdentOpen(false);
+    setDrawer(null); setSelNode(null); setSelEdge(null);
+    setVerify('idle'); setVerdictSent(false); setBandOverride(null);
+  };
+
+  const bumpStats = () => {
     setStats((s) => {
       const n = { ...s, forwards: (s.forwards || 0) + 1, cases: (s.cases || 0) + 1 };
       try { localStorage.setItem(STATS_KEY, JSON.stringify(n)); } catch { /* noop */ }
@@ -63,87 +79,50 @@ export default function ForwardCheck({ page, onNav }) {
     });
   };
 
-  const startForward = (fw) => {
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
-    t0Ref.current = performance.now();
-    const caseId = 'TG-FWD-2026-' + Math.floor(1000 + Math.random() * 9000);
-    const result = analyzeForward(fw); // deterministic engine — computed once, revealed step by step
-    setBundle(fw);
-    setAnalysis(result);
-    setMsgs([]);
-    setTrace([]);
-    setAstage(0);
-    setTraceOpen(false);
-    setPhase('chat');
+  // ---------- long press ----------
+  const startPress = () => { pressT.current = setTimeout(() => setMenuOpen(true), 550); };
+  const endPress = () => clearTimeout(pressT.current);
 
-    // — the forwarded bundle lands as ONE case unit —
-    later(450, () => {
-      pushMsg({ from: 'user', kind: 'forward', fw });
-      pushTrace('meta', 'bundle received · opened as one case');
-    });
-    // — beat 1: instant acknowledgment (no time promise) —
+  // ---------- forward flow ----------
+  const sendToTrustGuard = () => {
+    setScreen('sending');
     later(1500, () => {
-      pushMsg({ from: 'tg', kind: 'ack' });
-      pushTrace('meta', 'ack sent · analysis started');
-    });
-    // — case card: four identities, structurally separate —
-    later(2500, () => {
-      pushMsg({ from: 'tg', kind: 'case', caseId });
-      pushTrace('meta', `case ${caseId} created · forwarded-by / sender / claimed / verified kept separate`);
-      saveCase({
-        id: caseId, kind: 'forward', forwardId: fw.id,
+      setScreen('tg');
+      bumpStats();
+      const payload = {
+        id: sc.caseId.replace('#', '').replace(' ', '-'),
+        kind: 'forward', scenario: scenarioId,
         createdAt: new Date().toISOString(), status: 'checking',
-        family: result.family?.id || null, band: null,
-        signals: fw.signals.map((s) => s.id),
-        identities: {
-          forwardedBy: 'you',
-          originalSender: fw.sender.label,
-          claimedIdentity: fw.claim?.text || null,
-          verifiedIdentity: null,
-        },
-        transcript: fw.content.type === 'text' ? fw.content.lines.join('\n') : fw.content.transcript.join('\n'),
-      }).then((r) => pushTrace('sync', r.ok ? `POST /api/guardian/cases → ${r.status} · ${r.ms}ms` : 'backend unreachable · case kept locally'));
-    });
-    // — analysis, revealed step by step —
-    later(3700, () => { setAstage(1); pushMsg({ from: 'tg', kind: 'analyzing' }); pushTrace('eval', `claims extracted: ${fw.claim ? `“${fw.claim.text}”` : 'none stated'}`); });
-    later(4700, () => {
-      setAstage(2);
-      const top = result.scores.filter((s) => s.score > 0).map((s) => `${s.id}=${s.score}`).join(', ') || 'no family keywords';
-      pushTrace('eval', `family scores: ${top} → ${result.family ? result.family.id : 'unclassified'}`);
-    });
-    later(5700, () => {
-      setAstage(3);
-      pushTrace('eval', `signals matched: ${result.signalCount}/5 (${fw.signals.map((s) => s.id).join(', ') || 'none'})`);
-    });
-    later(6700, () => {
-      setAstage(4);
-      pushTrace('eval', `band: ${result.band} · rule: ${result.signalCount >= 3 ? '≥3' : result.signalCount >= 1 ? '1–2' : '0'} signals`);
-    });
-    // — beat 2: the verdict card —
-    later(7800, () => {
-      setAstage(5);
-      pushMsg({ from: 'tg', kind: 'verdict', caseId, at: new Date() });
-      pushTrace('meta', `verdict delivered · ${result.band}`);
-      bumpForwards();
-      saveCase({
-        id: caseId, kind: 'forward', forwardId: fw.id,
-        createdAt: new Date().toISOString(), status: 'complete',
-        family: result.family?.id || null, band: result.band,
-        signals: fw.signals.map((s) => s.id),
-        identities: {
-          forwardedBy: 'you',
-          originalSender: fw.sender.label,
-          claimedIdentity: fw.claim?.text || null,
-          verifiedIdentity: null,
-        },
-        transcript: fw.content.type === 'text' ? fw.content.lines.join('\n') : fw.content.transcript.join('\n'),
+        band: null, bundle: sc.bundle,
+        identities: Object.fromEntries(sc.identities.map((i) => [i.role, { value: i.value, status: i.status }])),
+      };
+      saveCase(payload);
+      // tg chat sequence
+      later(700, () => setTgStep(1)); // case card
+      later(1700, () => {
+        setTgStep(2); // pipeline card
+        PIPELINE_STAGES.forEach((_, i) => later(900 * (i + 1), () => setPipe(i + 1)));
       });
+      later(1700 + 900 * 6 + 700, () => setTgStep(3)); // sections
+      later(1700 + 900 * 6 + 1600, () => setTgStep(4)); // verdict
     });
-    later(8400, () => pushMsg({ from: 'tg', kind: 'actions' }));
   };
 
-  const bandClass = (b) => (b === 'HIGH RISK' ? 'high' : b === 'NEEDS REVIEW' ? 'review' : 'low');
+  const doVerify = () => {
+    setVerify('done');
+    if (sc.verification?.resolvesTo) setBandOverride(sc.verification.resolvesTo);
+  };
+
+  const forwardVerdict = () => {
+    setVerdictSent(true);
+    setScreen('family');
+    setToast('Assessment forwarded to Family Group.');
+  };
+
+  const now = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  const today = new Date().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+
+  const relById = (id) => sc.relationships.find((r) => r.id === id);
 
   return (
     <div className="sh-root">
@@ -152,165 +131,330 @@ export default function ForwardCheck({ page, onNav }) {
       <div className="sh-stage">
         <div className="sh-phone">
           <div className="sh-notch" />
-          <div className="sh-screen">
+          <div className="sh-screen f2-screen">
 
-            {/* ============ PICK ============ */}
-            {phase === 'pick' && (
-              <div className="f-pick">
-                <div className="f-hero">
-                  <div className="f-hero-kicker">Zero-effort intake</div>
-                  <h1>Forward-to-Check</h1>
-                  <p>Suspicious message? Don’t analyse it yourself — forward it to TrustGuard, the way you’d forward it to a friend. No forms, no typing, nothing to learn.</p>
+            {/* ================= FAMILY CHAT ================= */}
+            {screen === 'family' && (
+              <div className="wa-wrap">
+                <div className="f2-demobar">
+                  <span className="f2-demo-tag">Demo</span>
+                  <div className="f2-seg">
+                    {Object.values(SCENARIOS).map((s) => (
+                      <button key={s.id} className={s.id === scenarioId ? 'on' : ''} onClick={() => reset(s.id)}>{s.demoLabel}</button>
+                    ))}
+                  </div>
+                  <button className="f2-reset" onClick={() => reset()} title="Reset demo">↺</button>
                 </div>
-
-                <div className="f-stats">
-                  <div className="f-stat"><b>{stats.forwards || 0}</b><span>forwards checked</span></div>
-                  <div className="f-stat"><b>{stats.cases || 0}</b><span>cases built</span></div>
-                  <div className="f-stat"><b>8</b><span>scam families</span></div>
+                <div className="wa-head">
+                  <span className="wa-back">‹</span>
+                  <div className="wa-id"><b>{sc.chat.groupName}</b><span>{sc.chat.groupSub}</span></div>
+                  <span className="wa-icons">⤢ ⋮</span>
                 </div>
+                <div className="wa-body">
+                  {sc.chat.prior.map((m, i) => (
+                    <div key={i} className="wa-row"><div className="wa-bubble"><b className="wa-name c1">{m.from}</b><div>{m.text}</div><span className="wa-time">21:32</span></div></div>
+                  ))}
 
-                <div className="f-pick-label">Simulate forwarding one of these:</div>
-                {FORWARDS.map((fw) => (
-                  <button key={fw.id} className="f-fwd-card" onClick={() => startForward(fw)}>
-                    <span className={`f-kind f-kind-${fw.kind}`}>{fw.kind === 'video' ? '▸' : '✉'}</span>
-                    <span className="f-fwd-main">
-                      <b>{fw.title}</b>
-                      <span className="f-fwd-kind">{fw.kindLabel}</span>
-                      <span className="f-fwd-prev">{fw.preview}</span>
-                    </span>
-                    <span className="f-fwd-go">→</span>
-                  </button>
-                ))}
+                  {/* suspicious message — long-pressable */}
+                  <div className="wa-row">
+                    <div
+                      className="wa-bubble wa-susp"
+                      onPointerDown={startPress} onPointerUp={endPress} onPointerLeave={endPress}
+                      onClick={() => setMenuOpen(true)}
+                    >
+                      <b className="wa-name c2">{sc.chat.sender.name}</b>
+                      {sc.chat.sender.forwarded && <div className="wa-fwd">⤴ Forwarded many times</div>}
+                      <div className="wa-text">{sc.chat.text.split('\n').map((l, i) => <div key={i}>{l}</div>)}</div>
+                      {sc.chat.pdf && (
+                        <div className="wa-pdf">
+                          <div className="wa-pdf-doc">
+                            <div className="wa-pdf-head">{sc.chat.pdf.previewTitle}</div>
+                            <div className="wa-pdf-sub">{sc.chat.pdf.previewSub}</div>
+                            {sc.chat.pdf.bodyLines.map((l, i) => <div key={i} className="wa-pdf-line" />)}
+                            <div className="wa-pdf-sig">✒ {sc.chat.pdf.signatory}</div>
+                          </div>
+                          <div className="wa-pdf-meta"><span className="wa-pdf-ic">PDF</span><div><b>{sc.chat.pdf.name}</b><span>{sc.chat.pdf.size} · simulated document</span></div></div>
+                        </div>
+                      )}
+                      {sc.chat.link && (
+                        <div className="wa-link">
+                          <div className="wa-link-url">{sc.chat.link.url}</div>
+                          <div className="wa-link-note">{sc.chat.link.note}</div>
+                        </div>
+                      )}
+                      <span className="wa-time">21:47</span>
+                    </div>
+                  </div>
+                  <div className="wa-hint">Long press the message to inspect</div>
 
-                <p className="f-fine">Prototype simulation: forwarding is simulated with these demo bundles. A real build would receive actual forwarded messages.</p>
+                  {verdictSent && (
+                    <div className="wa-row right">
+                      <div className="wa-bubble wa-tgmsg">
+                        <div className="wa-tg-head"><Shield size={15} /> TrustGuard assessment</div>
+                        <div className={`f2-band f2-band-${bandClass(band)} sm`}>{band}</div>
+                        <div className="wa-tg-why">{sc.verdict.reasons.slice(0, 2).map((r, i) => <div key={i}>• {r}</div>)}</div>
+                        <div className="wa-tg-proof">Assessment, not proof.</div>
+                        <div className="wa-tg-meta">{sc.caseId} · {today}</div>
+                        <span className="wa-time">✓✓ {now}</span>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={endRef} />
+                </div>
+                <div className="wa-input"><div className="wa-input-ph">Message</div><div className="wa-mic">🎤</div></div>
+
+                {menuOpen && (
+                  <div className="wa-menu-wrap" onClick={() => setMenuOpen(false)}>
+                    <div className="wa-menu" onClick={(e) => e.stopPropagation()}>
+                      {['Reply', 'Copy', 'More'].map((a) => (
+                        <button key={a} onClick={() => { setMenuOpen(false); setToast(`${a} is not part of this demo.`); }}>{a}</button>
+                      ))}
+                      <button className="primary" onClick={() => { setMenuOpen(false); setScreen('forward'); }}>⤴ Forward</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* ============ CHAT ============ */}
-            {phase === 'chat' && bundle && (
-              <div className="f-chat">
-                <div className="f-chatbar">
-                  <button className="f-back" onClick={() => { timers.current.forEach(clearTimeout); setPhase('pick'); }} aria-label="Back">←</button>
-                  <div className="f-chat-id">
-                    <b>TrustGuard</b>
-                    <span><i className="f-online" />online · prototype</span>
+            {/* ================= FORWARD SCREEN ================= */}
+            {screen === 'forward' && (
+              <div className="wa-wrap">
+                <div className="wa-head">
+                  <button className="wa-x" onClick={() => setScreen('family')}>✕</button>
+                  <div className="wa-id"><b>Forward message</b><span>1 message selected</span></div>
+                </div>
+                <div className="wa-body">
+                  <div className="f2-card">
+                    <div className="f2-card-head">Complete bundle</div>
+                    {sc.bundle.map((b) => (
+                      <div key={b} className="f2-bundle-row"><span className="f2-check">✓</span>{b}</div>
+                    ))}
+                    <div className="f2-one-case">ONE CASE<span>containing MULTIPLE EVIDENCE ITEMS</span></div>
+                  </div>
+                  <div className="f2-sendto-label">Send to</div>
+                  <div className="f2-contact">
+                    <span className="f2-shield"><Shield size={24} /></span>
+                    <div><b>TrustGuard</b><span>Case engine · prototype</span></div>
+                    <span className="f2-check big">✓</span>
                   </div>
                 </div>
-
-                <div className="f-msgs">
-                  {msgs.map((m) => {
-                    if (m.from === 'user' && m.kind === 'forward') {
-                      const b = m.fw;
-                      return (
-                        <div key={m.key} className="f-row right">
-                          <div className="f-bubble user">
-                            <div className="f-fwd-tag">⤴ Forwarded</div>
-                            <div className="f-bubble-title">{b.title}</div>
-                            <div className="f-bubble-kind">{b.kindLabel}</div>
-                            <div className="f-bubble-prev">{b.preview}</div>
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (m.kind === 'ack') {
-                      return (
-                        <div key={m.key} className="f-row left">
-                          <div className="f-bubble tg">
-                            <b>Got it.</b>
-                            <div className="f-ack-sub">Building your case — nothing needed from you.</div>
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (m.kind === 'case') {
-                      return (
-                        <div key={m.key} className="f-row left">
-                          <div className="f-card">
-                            <div className="f-card-head">Case {m.caseId} <span className="f-chip dim">opened just now</span></div>
-                            <div className="f-idrow"><span>Forwarded by</span><b>You</b><span className="f-chip ok">known</span></div>
-                            <div className="f-idrow"><span>Original sender</span><b className="f-wrap">{bundle.sender.label}</b>{!bundle.sender.known && <span className="f-chip warn">unknown</span>}</div>
-                            <div className="f-idrow"><span>Claimed identity</span><b className="f-wrap">{bundle.claim ? bundle.claim.text : 'None stated'}</b>{bundle.claim && <span className="f-chip warn">unverified claim</span>}</div>
-                            <div className="f-idrow"><span>Verified identity</span><b>Not established</b><span className="f-chip dim">pending</span></div>
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (m.kind === 'analyzing') {
-                      return (
-                        <div key={m.key} className="f-row left">
-                          <div className="f-card">
-                            <div className="f-card-head">Checking the bundle</div>
-                            <div className="f-steps">
-                              {ANALYSIS_STEPS.map((s, i) => (
-                                <div key={s} className={`f-step${astage > i + 1 || (astage === 5) ? ' done' : astage === i + 1 ? ' live' : ''}`}>
-                                  <span className="f-step-dot" />{s}
-                                </div>
-                              ))}
-                            </div>
-                            {astage >= 2 && (
-                              <div className="f-fams">
-                                {analysis.scores.map((f) => (
-                                  <span key={f.id} className={`f-fam${analysis.family && f.id === analysis.family.id ? ' hit' : ''}`}>{f.label}</span>
-                                ))}
-                              </div>
-                            )}
-                            {astage >= 3 && (
-                              <div className="f-sigline">{analysis.signalCount} of 5 signals matched</div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (m.kind === 'verdict') {
-                      const v = analysis;
-                      return (
-                        <div key={m.key} className="f-row left">
-                          <div className={`f-verdict ${bandClass(v.band)}`}>
-                            <div className="f-v-top">
-                              <span className={`f-band f-band-${bandClass(v.band)}`}>{v.band}</span>
-                              {v.family && <span className="f-v-fam">Pattern: {v.family.label}</span>}
-                            </div>
-                            <div className="f-v-why">Why this assessment</div>
-                            <ul className="f-v-reasons">{bundle.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
-                            {bundle.honestyNote && <div className="f-v-note">{bundle.honestyNote}</div>}
-                            <div className="f-v-proof">Assessment, not proof.</div>
-                            <div className="f-v-verify">
-                              <b>Verify independently</b>
-                              <p>{bundle.verifyStep}</p>
-                            </div>
-                            <div className="f-v-meta">Case {m.caseId} · {m.at.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</div>
-                            <button className="f-v-share" onClick={() => setToast('Verdict card ready — safe to forward as-is.')}>Forward this card</button>
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (m.kind === 'actions') {
-                      return (
-                        <div key={m.key} className="f-row left">
-                          <div className="f-actions">
-                            <button className="f-btn ghost" onClick={() => setTraceOpen((o) => !o)}>{traceOpen ? 'Hide' : 'Show'} engine trace</button>
-                            <button className="f-btn" onClick={() => { timers.current.forEach(clearTimeout); setPhase('pick'); }}>Check another forward</button>
-                          </div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
-
-                  {traceOpen && trace.length > 0 && (
-                    <div className="f-trace">
-                      <div className="f-trace-head">ENGINE TRACE</div>
-                      {trace.map((l, i) => (
-                        <div key={i} className={`f-trace-line t-${l.kind}`}><span className="f-t-t">{l.t}</span>{l.text}</div>
-                      ))}
-                    </div>
-                  )}
-                  <div ref={chatEndRef} />
+                <div className="f2-sendbar">
+                  <button className="f2-send" onClick={sendToTrustGuard}>Send to TrustGuard →</button>
                 </div>
+              </div>
+            )}
 
-                <div className="f-inputbar">
-                  <div className="f-input-ph">Forward a message to check…</div>
-                  <div className="f-input-hint">simulated</div>
+            {/* ================= SENDING ================= */}
+            {screen === 'sending' && (
+              <div className="f2-sending">
+                <div className="f2-fly"><span className="f2-fly-msg">⤴</span><span className="f2-fly-shield"><Shield size={40} /></span></div>
+                <p>Sending bundle to TrustGuard…</p>
+              </div>
+            )}
+
+            {/* ================= TRUSTGUARD CHAT ================= */}
+            {screen === 'tg' && (
+              <div className="tg-wrap">
+                <div className="tg-head">
+                  <button className="wa-x" onClick={() => reset()}>‹</button>
+                  <span className="f2-shield sm"><Shield size={20} /></span>
+                  <div className="wa-id"><b>TrustGuard</b><span><i className="f2-online" />online · prototype</span></div>
+                </div>
+                <div className="tg-body">
+                  {/* beat 1 — acknowledgement */}
+                  <div className="tg-row"><div className="tg-bubble">
+                    <b>Received — analyzing your forward…</b>
+                    <div className="tg-sub">Case created. Analyzing the complete evidence bundle…</div>
+                    <div className="tg-sub dim">This only means the evidence arrived — not what it means yet.</div>
+                  </div></div>
+
+                  {/* case card */}
+                  {tgStep >= 1 && (
+                    <div className="tg-row"><div className="f2-card glow">
+                      <div className="f2-card-head">{sc.caseId} <span className="f2-chip dim">opened just now</span></div>
+                      <div className="f2-ev-label">Evidence received</div>
+                      <div className="f2-ev-chips">{sc.bundle.map((b) => <span key={b} className="f2-ev-chip">{b}</span>)}</div>
+                      <div className="f2-one-case">ONE CASE<span>containing MULTIPLE EVIDENCE ITEMS</span></div>
+                    </div></div>
+                  )}
+
+                  {/* pipeline */}
+                  {tgStep >= 2 && (
+                    <div className="tg-row"><div className="f2-card">
+                      <div className="f2-card-head">Analysis pipeline</div>
+                      {PIPELINE_STAGES.map((s, i) => (
+                        <div key={s.id} className={`f2-stage${pipe > i + 1 ? ' done' : pipe === i + 1 ? ' live' : ''}`}>
+                          <span className="f2-stage-dot" />
+                          <div><b>{s.label}</b><span>{s.desc}</span></div>
+                        </div>
+                      ))}
+                    </div></div>
+                  )}
+
+                  {/* sections */}
+                  {tgStep >= 3 && (
+                    <>
+                      <div className="tg-row"><div className="f2-card">
+                        <button className="f2-sec-head" onClick={() => setIdentOpen((o) => !o)}>
+                          Identity context <span>{identOpen ? '▾' : '▸'}</span>
+                        </button>
+                        {identOpen && sc.identities.map((idn) => (
+                          <div key={idn.role} className="f2-idrow">
+                            <span>{idn.role}</span><b>{idn.value}</b>
+                            <span className={`f2-chip st-${idn.status.replace(/ /g, '-').toLowerCase()}`}>{idn.status}</span>
+                          </div>
+                        ))}
+                        {!identOpen && <div className="f2-sec-hint">4 identities · kept strictly separate</div>}
+                      </div></div>
+
+                      <div className="tg-row"><div className="f2-card">
+                        <div className="f2-card-head">Claims extracted <span className="f2-chip dim">{sc.claims.length}</span></div>
+                        {sc.claims.map((c) => (
+                          <button key={c.id} className="f2-claim" onClick={() => setDrawer({ kind: 'claim', data: c })}>
+                            <span className="f2-claim-id">{c.id}</span>
+                            <span className="f2-claim-text">“{c.text}”</span>
+                            <span className={`f2-claim-state k-${c.stateKind}`}>{c.state}</span>
+                          </button>
+                        ))}
+                      </div></div>
+
+                      <div className="tg-row"><div className="f2-card">
+                        <div className="f2-card-head">Evidence relationships <span className="f2-chip dim">{sc.relationships.length}</span></div>
+                        {sc.relationships.map((r) => (
+                          <button key={r.id} className="f2-rel" onClick={() => setDrawer({ kind: 'rel', data: r })}>
+                            <span className="f2-rel-type" style={{ color: REL_STYLE[r.type].color, borderColor: REL_STYLE[r.type].color }}>{r.type}</span>
+                            <span className="f2-rel-title">{r.title}</span>
+                            <span className="f2-rel-go">›</span>
+                          </button>
+                        ))}
+                      </div></div>
+
+                      <div className="tg-row"><div className="f2-card">
+                        <div className="f2-card-head">Evidence graph</div>
+                        <svg viewBox="0 0 360 320" className="f2-graph">
+                          {sc.graph.edges.map((e) => {
+                            const a = sc.graph.nodes.find((n) => n.id === e.from);
+                            const b = sc.graph.nodes.find((n) => n.id === e.to);
+                            const active = selEdge === e.id;
+                            return (
+                              <g key={e.id} className="f2-edge-g" onClick={() => { setSelEdge(e.id); setSelNode(null); }}>
+                                <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className="f2-edge-hit" />
+                                <line x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+                                  className={`f2-edge${active ? ' active' : ''}`}
+                                  style={{ stroke: REL_STYLE[e.type].color }}
+                                  strokeDasharray={e.type === 'UNKNOWN' ? '5 4' : undefined} />
+                              </g>
+                            );
+                          })}
+                          {sc.graph.nodes.map((n) => (
+                            <g key={n.id} className={`f2-node${selNode === n.id ? ' active' : ''}`}
+                              onClick={() => { setSelNode(n.id); setSelEdge(null); }}>
+                              <rect x={n.x - 34} y={n.y - 17} width="68" height="34" rx="10" />
+                              <text x={n.x} y={n.y + 4} textAnchor="middle">{n.label}</text>
+                            </g>
+                          ))}
+                        </svg>
+                        <div className="f2-legend">
+                          {Object.entries(REL_STYLE).map(([k, v]) => (
+                            <span key={k} style={{ color: v.color }}><i style={{ background: v.color }} />{k}</span>
+                          ))}
+                        </div>
+                        {(selNode || selEdge) && (
+                          <div className="f2-sel">
+                            {selNode && (() => { const n = sc.graph.nodes.find((x) => x.id === selNode); return (<><b>{n.label}</b><p>{n.desc}</p></>); })()}
+                            {selEdge && (() => { const r = relById(sc.graph.edges.find((x) => x.id === selEdge).rel); return (<><b style={{ color: REL_STYLE[r.type].color }}>{r.type}</b><p>{r.title}</p><button className="f2-link" onClick={() => setDrawer({ kind: 'rel', data: r })}>Open full evidence ›</button></>); })()}
+                          </div>
+                        )}
+                      </div></div>
+                    </>
+                  )}
+
+                  {/* verdict */}
+                  {tgStep >= 4 && (() => {
+                    const showReasons = bandOverride && sc.verification
+                      ? [sc.verification.outcomeNote]
+                      : sc.verdict.reasons;
+                    return (
+                    <div className="tg-row"><div className={`f2-verdict ${bandClass(band)}`}>
+                      <div className="f2-v-top">
+                        <span className={`f2-band f2-band-${bandClass(band)}`}>{band}</span>
+                      </div>
+                      <div className="f2-v-why">Why this assessment</div>
+                      <ul className="f2-v-reasons">{showReasons.map((r) => <li key={r}>{r}</li>)}</ul>
+                      <div className="f2-v-proof">Assessment, not proof.</div>
+                      <div className="f2-v-verify">
+                        <b>Next safest action</b>
+                        <p>{sc.verdict.verifyStep}</p>
+                      </div>
+                      {sc.verdict.singleCheck && verify === 'idle' && (
+                        <div className="f2-v-verify amber"><b>One check would settle this</b><p>{sc.verdict.singleCheck}</p></div>
+                      )}
+                      <div className="f2-v-meta">{sc.caseId} · {today}</div>
+                      <div className="f2-v-actions">
+                        {sc.verification && verify === 'idle' && (
+                          <button className="f2-btn ghost" onClick={() => setVerify('open')}>Show independent verification</button>
+                        )}
+                        <button className="f2-btn" onClick={forwardVerdict}>Forward this assessment</button>
+                      </div>
+                      {verify !== 'idle' && sc.verification && (
+                        <div className="f2-verify-panel">
+                          <b>Independent verification</b>
+                          <p className="f2-vp-intro">{sc.verification.intro}</p>
+                          <div className="f2-vp-rec"><span>Recommended check</span><p>{sc.verification.recommended}</p></div>
+                          {verify === 'open' && (
+                            <button className="f2-btn" onClick={doVerify}>{sc.verification.actionLabel}</button>
+                          )}
+                          {verify === 'done' && (
+                            <div className="f2-vp-done">
+                              <span className="f2-chip dim">simulated result</span>
+                              <p>{sc.verification.simulatedResult}</p>
+                              <p className="f2-vp-outcome">{sc.verification.outcomeNote}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div></div>
+                    );
+                  })()}
+
+                  {tgStep >= 4 && (
+                    <div className="tg-row"><div className="f2-fine-card">
+                      <p><b>Privacy:</b> Nothing is analyzed until you forward it to TrustGuard. Only what you hand over is examined.</p>
+                      <p><b>Prototype seam:</b> the messaging interface is simulated; the TrustGuard case engine is the core product.</p>
+                      <div className="f2-flow">FORWARD → CASE → BUNDLE → CLAIMS → IDENTITIES → RELATIONSHIPS → RISK → VERIFICATION → OUTPUT</div>
+                    </div></div>
+                  )}
+                  <div ref={endRef} />
+                </div>
+              </div>
+            )}
+
+            {/* drawer */}
+            {drawer && (
+              <div className="f2-drawer-wrap" onClick={() => setDrawer(null)}>
+                <div className="f2-drawer" onClick={(e) => e.stopPropagation()}>
+                  <button className="f2-drawer-x" onClick={() => setDrawer(null)}>✕</button>
+                  {drawer.kind === 'claim' ? (
+                    <>
+                      <div className="f2-card-head">{drawer.data.id} · Claim</div>
+                      <p className="f2-drawer-quote">“{drawer.data.text}”</p>
+                      <div className="f2-drow"><span>Source evidence</span><b>{drawer.data.source}</b></div>
+                      <div className="f2-drow"><span>Where it came from</span><b>{drawer.data.origin}</b></div>
+                      <div className="f2-drow"><span>Verification state</span><b>{drawer.data.state}</b></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="f2-rel-type" style={{ color: REL_STYLE[drawer.data.type].color, borderColor: REL_STYLE[drawer.data.type].color }}>{drawer.data.type}</div>
+                      <div className="f2-card-head" style={{ marginTop: 8 }}>{drawer.data.title}</div>
+                      <div className="f2-drow"><span>Claim A</span><b>{drawer.data.a}</b></div>
+                      <div className="f2-drow"><span>Claim B</span><b>{drawer.data.b}</b></div>
+                      <div className="f2-drow"><span>Check performed</span><b>{drawer.data.check}</b></div>
+                      <div className="f2-drow"><span>Result</span><b>{drawer.data.result}</b></div>
+                      <div className="f2-drow"><span>Confidence</span><b>{drawer.data.confidence}</b></div>
+                      <div className="f2-drow"><span>Uncertainty</span><b>{drawer.data.uncertainty}</b></div>
+                      <div className="f2-drow"><span>Source of evidence</span><b>{drawer.data.source}</b></div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -319,10 +463,8 @@ export default function ForwardCheck({ page, onNav }) {
       </div>
 
       <p className="g-page-fine" style={{ maxWidth: 430 }}>
-        Idea 2 · Forward-to-Check — zero-learning-curve intake for anyone under uncertainty.
-        Prototype simulation; verdicts are assessments, not proof.
+        Idea 2 · Forward-to-Check — a case, not a file. Prototype simulation; assessments are not proof.
       </p>
-
       {toast && <div className="g-toast" role="status">{toast}</div>}
     </div>
   );
