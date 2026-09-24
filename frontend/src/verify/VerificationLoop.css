@@ -22,7 +22,7 @@
 
 /* progress indicator */
 .vl-progress { display: flex; gap: 4px; margin: 14px 0 6px; }
-.vl-step { flex: 1; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.vl-step { flex: 1; display: flex; flex-direction: column; gap: 6px; align-items: center; text-align: center; }
 .vl-step-dot {
   width: 10px; height: 10px; border-radius: 50%;
   background: #2a3a4f; border: 1px solid #3a4d66;
@@ -42,6 +42,7 @@
   padding: 9px 10px; color: #dbe7f7; font-size: 12.5px; cursor: pointer; font-family: inherit;
 }
 .vl-casebtn.on { border-color: #f0a832; color: #fff; background: #171208; }
+.vl-casebtn:last-child { grid-column: 1 / -1; }
 
 /* cards */
 .vl-card {

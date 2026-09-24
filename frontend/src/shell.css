@@ -21,6 +21,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  row-gap: 10px;
   margin-bottom: 18px;
 }
 .g-brand { display: flex; align-items: center; gap: 9px; }
@@ -35,11 +37,11 @@
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 10px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
   color: #f59e0b; background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.35);
-  padding: 5px 10px; border-radius: 999px; margin-left: 10px;
+  padding: 5px 10px; border-radius: 999px; margin-left: 10px; white-space: nowrap;
 }
 .g-live-tag .g-pulse { width: 7px; height: 7px; background: #f59e0b; border-radius: 50%; animation: gPulse 1.6s ease-in-out infinite; }
 @keyframes gPulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .45; transform: scale(.8); } }
-.g-pages { display: flex; align-items: center; gap: 6px; }
+.g-pages { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .g-dot {
   width: 8px; height: 8px; border-radius: 50%; background: #2b3442;
   border: 0; padding: 0; cursor: pointer;
@@ -47,7 +49,7 @@
 .g-dot.on { background: #f59e0b; box-shadow: 0 0 10px rgba(245,158,11,.8); cursor: default; }
 .g-dot:disabled { cursor: default; opacity: .8; }
 button.g-dot:not(:disabled):hover { background: #4a5568; }
-.g-page-label { font-size: 11.5px; color: #8b95a5; margin-left: 6px; }
+.g-page-label { font-size: 11.5px; color: #8b95a5; margin-left: 6px; white-space: nowrap; }
 
 /* ---------- phone frame (shared) ---------- */
 .sh-stage { width: min(430px, 100%); }

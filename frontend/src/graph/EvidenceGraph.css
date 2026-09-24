@@ -6,8 +6,8 @@
 .eg-eyebrow { font-size: 10.5px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: #f59e0b; }
 .eg-title { font-size: 30px; font-weight: 800; letter-spacing: -0.5px; margin: 6px 0 2px; color: #f2f5f9; }
 .eg-sub { font-size: 13.5px; color: #9aa5b3; margin-bottom: 10px; }
-.eg-status { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #c7d0db; background: #131b25; border: 1px solid #232c38; border-radius: 10px; padding: 9px 12px; margin-bottom: 10px; }
-.eg-pulse { width: 8px; height: 8px; border-radius: 50%; background: #60a5fa; animation: gPulse 1.6s ease-in-out infinite; flex-shrink: 0; }
+.eg-status { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: #c7d0db; background: #131b25; border: 1px solid #232c38; border-radius: 10px; padding: 9px 12px; margin-bottom: 10px; }
+.eg-pulse { width: 8px; height: 8px; border-radius: 50%; background: #60a5fa; animation: gPulse 1.6s ease-in-out infinite; flex-shrink: 0; margin-top: 5px; }
 .eg-evrow { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .eg-evchip { font-size: 11px; color: #aeb9c6; background: #182030; border: 1px solid #26303e; padding: 4px 9px; border-radius: 999px; }
 .eg-relcount { font-size: 12.5px; font-weight: 700; color: #f2f5f9; margin-bottom: 4px; }
@@ -17,6 +17,7 @@
 .eg-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
 .eg-switch-btn { background: #131b25; border: 1px solid #26303e; color: #9aa5b3; font-size: 12.5px; font-weight: 700; padding: 10px; border-radius: 12px; cursor: pointer; }
 .eg-switch-btn.on { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.55); color: #f5b53f; }
+.eg-switch-btn:last-child { grid-column: 1 / -1; }
 
 /* ---------- cards ---------- */
 .eg-card { background: #111823; border: 1px solid #232c38; border-radius: 16px; padding: 15px; margin-bottom: 12px; }
