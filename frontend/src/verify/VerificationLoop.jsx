@@ -3,6 +3,7 @@ import PageHead from '../PageHead';
 import { VERIFY_CASES, VERIFY_IDS } from './verifyScenarios';
 import { recordVerification, resetVerificationState } from '../shared/caseStore';
 import VerifyChain from './VerifyChain';
+import DemoWalkthrough4 from './DemoWalkthrough4';
 import './VerificationLoop.css';
 
 const VC = {
@@ -231,6 +232,14 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
             ))}
           </div>
         </div>
+
+        {/* DEMO WALKTHROUGH — additive presenter script (Idea 4 only) */}
+        <DemoWalkthrough4
+          caseId={caseId}
+          verdictNow={verdictNow}
+          onSwitchCase={(id) => id !== caseId && resetAll(id)}
+          onGoDecision={() => onNav(5)}
+        />
 
         {part === 1 && (
           <>
