@@ -26,12 +26,22 @@ export const VERDICT_META = {
   },
 };
 
+// Deterministic decision rule (#35): the post-verification verdict is DERIVED
+// from the resulting relationship type, never baked into an outcome.
+// UNKNOWN → CONFLICT becomes HIGH RISK; → SUPPORT becomes LOW RISK;
+// UNKNOWN that stays unresolved remains NEEDS REVIEW.
+export function outcomeVerdict(outcome) {
+  if (!outcome) return 'NEEDS REVIEW';
+  if (outcome.edgeAfter === 'CONFLICT') return 'HIGH RISK';
+  if (outcome.edgeAfter === 'SUPPORT') return 'LOW RISK';
+  return 'NEEDS REVIEW';
+}
+
 const OUTCOME = {
   negative: {
     key: 'negative',
     label: 'No such officer / case',
     edgeAfter: 'CONFLICT',
-    verdict: 'HIGH RISK',
     resultText: '“No such officer/case was confirmed.”',
     verdictNote: 'Independent verification conflicts with the caller’s claimed identity and authority.',
     nextAction: 'Do not send money, OTPs, credentials, or personal documents. End contact and preserve the evidence.',
@@ -41,7 +51,6 @@ const OUTCOME = {
     key: 'positive',
     label: 'Officer and case confirmed',
     edgeAfter: 'SUPPORT',
-    verdict: 'LOW RISK',
     resultText: '“Officer/case confirmed through an independent source.”',
     verdictNote: 'Available evidence is consistent with the independently verified information.',
     nextAction: 'No immediate action is required from TrustGuard.',
@@ -51,7 +60,6 @@ const OUTCOME = {
     key: 'inconclusive',
     label: 'Unable to verify',
     edgeAfter: 'UNKNOWN',
-    verdict: 'NEEDS REVIEW',
     resultText: 'Verification inconclusive — the department could neither confirm nor deny.',
     verdictNote: 'TrustGuard cannot resolve this case from the available evidence.',
     nextAction: 'Do not act until independent verification is available.',
@@ -64,7 +72,6 @@ const BANK_OUTCOME = {
     key: 'negative',
     label: 'The bank has no record of this call',
     edgeAfter: 'CONFLICT',
-    verdict: 'HIGH RISK',
     resultText: '“The bank has no record of placing this call.”',
     verdictNote: 'Independent verification conflicts with the caller’s claimed identity.',
     nextAction: 'Do not share OTPs, credentials, or personal documents. End contact and preserve the evidence.',
@@ -74,7 +81,6 @@ const BANK_OUTCOME = {
     key: 'positive',
     label: 'Yes, the bank confirmed the call',
     edgeAfter: 'SUPPORT',
-    verdict: 'LOW RISK',
     resultText: '“Yes, the bank confirmed the call.”',
     verdictNote: 'Consistent with available evidence.',
     nextAction: 'No immediate action is required from TrustGuard.',
@@ -84,7 +90,6 @@ const BANK_OUTCOME = {
     key: 'inconclusive',
     label: 'Unable to verify',
     edgeAfter: 'UNKNOWN',
-    verdict: 'NEEDS REVIEW',
     resultText: 'Verification inconclusive — the bank could neither confirm nor deny.',
     verdictNote: 'TrustGuard cannot resolve this case from the available evidence.',
     nextAction: 'Do not act until independent verification is available.',
@@ -269,7 +274,6 @@ const PARCEL_OUTCOME = {
     key: 'negative',
     label: 'No such parcel or reference on record',
     edgeAfter: 'CONFLICT',
-    verdict: 'HIGH RISK',
     resultText: '“No parcel or reference matching this SMS exists on record.”',
     verdictNote: 'Independent verification conflicts with the message’s core claim.',
     nextAction: 'Do not pay, click the link, or reply. Delete the SMS and preserve it as evidence.',
@@ -279,7 +283,6 @@ const PARCEL_OUTCOME = {
     key: 'positive',
     label: 'Yes, the parcel is confirmed',
     edgeAfter: 'SUPPORT',
-    verdict: 'LOW RISK',
     resultText: '“Yes — a parcel with this reference is held, and the fee can be paid at the official counter.”',
     verdictNote: 'Consistent with available evidence.',
     nextAction: 'No immediate action is required from TrustGuard. Pay only through the official counter or site.',
@@ -289,7 +292,6 @@ const PARCEL_OUTCOME = {
     key: 'inconclusive',
     label: 'Unable to verify',
     edgeAfter: 'UNKNOWN',
-    verdict: 'NEEDS REVIEW',
     resultText: 'Verification inconclusive — the office could neither confirm nor deny.',
     verdictNote: 'TrustGuard cannot resolve this case from the available evidence.',
     nextAction: 'Do not pay or click anything until independent verification is available.',

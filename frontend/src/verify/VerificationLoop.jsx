@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import PageHead from '../PageHead';
-import { VERIFY_CASES, VERIFY_IDS } from './verifyScenarios';
+import { VERIFY_CASES, VERIFY_IDS, outcomeVerdict } from './verifyScenarios';
 import { recordVerification, resetVerificationState } from '../shared/caseStore';
 import VerifyChain from './VerifyChain';
 import './VerificationLoop.css';
@@ -31,7 +31,7 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
   const [outcomeKey, setOutcomeKey] = useState(null);
   const [outcome, setOutcome] = useState(null);
   const [prevVerdict, setPrevVerdict] = useState(null);
-  const [flipKey, setFlipKey] = useState(0);
+  const [, setFlipKey] = useState(0);
   const [history, setHistory] = useState([]);
   const [showProv, setShowProv] = useState(false);
   const [showHist, setShowHist] = useState(false);
@@ -47,7 +47,7 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
   }, [outcome, phase]);
   const verdictNow = useMemo(() => {
     if (phase === 'stopped') return 'UNRESOLVED';
-    if (outcome && (phase === 'folded' || phase === 'done' || phase === 'received')) return outcome.verdict;
+    if (outcome && (phase === 'folded' || phase === 'done' || phase === 'received')) return outcomeVerdict(outcome);
     return scase.initialVerdict;
   }, [outcome, phase, scase]);
 
@@ -104,7 +104,7 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
         what: link.historyWhat,
         why: link.historyWhy,
         effect: { from: 'UNKNOWN', to: o.edgeAfter },
-        verdict: { from: scase.initialVerdict, to: o.verdict },
+        verdict: { from: scase.initialVerdict, to: outcomeVerdict(o) },
         result: o.resultText,
         state: key === 'inconclusive' ? 'Inconclusive' : 'Completed',
         at,
@@ -123,7 +123,7 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
       resultText: o.resultText,
       edgeAfter: o.edgeAfter,
       outcomeKey: key,
-      verdict: o.verdict,
+      verdict: outcomeVerdict(o),
       nextAction: o.nextAction,
       state: key === 'inconclusive' ? 'Inconclusive' : 'Completed',
     });
@@ -486,8 +486,8 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                   <div className="vl-recomputed">CASE RECOMPUTED</div>
                   <div className="vl-statusrow big">
                     <span className="vl-status-label">Verdict</span>
-                    <span className="vl-verdict" style={{ color: VC[outcome.verdict], borderColor: VC[outcome.verdict] }}>
-                      {outcome.verdict}
+                    <span className="vl-verdict" style={{ color: VC[outcomeVerdict(outcome)], borderColor: VC[outcomeVerdict(outcome)] }}>
+                      {outcomeVerdict(outcome)}
                     </span>
                   </div>
                   <p className="vl-note">{outcome.verdictNote}</p>
@@ -539,7 +539,7 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                         ['Verification', link.recommendation.action],
                         ['Result', `${outcome.sourceType} — ${outcome.resultText}`],
                         ['Graph effect', `${link.chain.edgeLabel}: ${'UNKNOWN'} → ${outcome.edgeAfter}`],
-                        ['Verdict effect', `${prevVerdict || scase.initialVerdict} → ${outcome.verdict}`],
+                        ['Verdict effect', `${prevVerdict || scase.initialVerdict} → ${outcomeVerdict(outcome)}`],
                       ].map(([k, v]) => (
                         <div key={k} className="vl-prov-row">
                           <span>{k}</span>
@@ -553,8 +553,8 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                 <div className="vl-card">
                   <div className="vl-card-head">Case status</div>
                   <div className="vl-statusrow">
-                    <span className="vl-verdict" style={{ color: VC[outcome.verdict], borderColor: VC[outcome.verdict] }}>
-                      {outcome.verdict}
+                    <span className="vl-verdict" style={{ color: VC[outcomeVerdict(outcome)], borderColor: VC[outcomeVerdict(outcome)] }}>
+                      {outcomeVerdict(outcome)}
                     </span>
                   </div>
                   <div className="vl-statusgrid">

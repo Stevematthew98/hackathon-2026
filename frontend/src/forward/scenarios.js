@@ -116,7 +116,6 @@ export const SCENARIOS = {
       ],
     },
     verdict: {
-      band: 'HIGH RISK',
       reasons: [
         'Organization information conflicts with the document.',
         'Claimed signatory could not be independently verified.',
@@ -193,7 +192,6 @@ export const SCENARIOS = {
       ],
     },
     verdict: {
-      band: 'NEEDS VERIFICATION',
       reasons: [
         'The available evidence is not enough to settle this case.',
         'No company is named, so the employer claim cannot be checked.',
@@ -268,7 +266,6 @@ export const SCENARIOS = {
       ],
     },
     verdict: {
-      band: 'LOW CONCERN',
       reasons: ['No significant conflicts found.', 'No threat, deadline, link, or demand detected.', 'No action needed.'],
       verifyStep: 'Nothing to verify. If plans change, the organizer will announce it here.',
       honestyNote: null,
@@ -279,5 +276,16 @@ export const SCENARIOS = {
 
 // Band decision for the prototype: driven by relationship pattern, not a score.
 export function bandClass(band) {
-  return band === 'HIGH RISK' ? 'high' : band === 'NEEDS VERIFICATION' ? 'review' : 'low';
+  return band === 'HIGH RISK' ? 'high' : band === 'NEEDS REVIEW' ? 'review' : 'low';
+}
+
+// Deterministic decision rule (#35): the band is DERIVED from the case's
+// relationship types, never baked into a scenario. A CONFLICT anywhere means
+// HIGH RISK; otherwise any unresolved UNKNOWN/ANOMALY means NEEDS
+// VERIFICATION; all-SUPPORT means LOW CONCERN.
+export function decideBand(relationships) {
+  const types = (relationships || []).map((r) => r.type);
+  if (types.includes('CONFLICT')) return 'HIGH RISK';
+  if (types.includes('UNKNOWN') || types.includes('ANOMALY')) return 'NEEDS REVIEW';
+  return 'LOW CONCERN';
 }

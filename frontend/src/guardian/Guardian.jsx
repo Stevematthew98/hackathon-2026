@@ -23,12 +23,6 @@ function fmt(s) {
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
-function todayStamp() {
-  return new Date().toLocaleString('en-IN', {
-    day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit',
-  });
-}
-
 function loadStats() {
   try {
     return JSON.parse(localStorage.getItem('tg-stats-v1')) || { calls: 0, cases: 0, signals: 0 };
@@ -45,13 +39,13 @@ export default function Guardian({ page, onNav }) {
   const [tripwire, setTripwire] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [toast, setToast] = useState(null);
-  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [, setTranscriptOpen] = useState(false);
   const [numberRevealed, setNumberRevealed] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [expandedSignal, setExpandedSignal] = useState(null);
   const [playing, setPlaying] = useState(false);
   const [playPos, setPlayPos] = useState(0);
-  const [claim, setClaim] = useState(null);
+  const [, setClaim] = useState(null);
   const [finalDuration, setFinalDuration] = useState(0);
   const [caseId, setCaseId] = useState(null);
   const [serverSave, setServerSave] = useState(null); // null | saving | saved | local
@@ -126,7 +120,7 @@ export default function Guardian({ page, onNav }) {
       saveCaseToServer(snap);
       pushTrace([{ t: timeRef.current, kind: 'trip', text: `TRIPWIRE · ${snap.signals.length}/5 signals — case ${snap.id} created, no verdict` }]);
       setSheetOpen(true);
-      try { navigator.vibrate && navigator.vibrate(40); } catch { /* noop */ }
+      try { if (navigator.vibrate) navigator.vibrate(40); } catch { /* noop */ }
     }
   }, [fired, tripwire]);
 
@@ -603,10 +597,10 @@ export default function Guardian({ page, onNav }) {
                   )}
                 </div>
 
-                <button className="g-primary" disabled title="Page 2 · coming next">
-                  Continue to analysis →
+                <button className="g-primary" onClick={() => onNav && onNav(2)}>
+                  Continue to Forward-to-Check →
                 </button>
-                <p className="g-fine">Next page: the Evidence Graph</p>
+                <p className="g-fine">Next: Idea 2 · Forward-to-Check</p>
                 <div className="g-case-foot">No verdict yet — analysis continues.</div>
               </div>
             )}

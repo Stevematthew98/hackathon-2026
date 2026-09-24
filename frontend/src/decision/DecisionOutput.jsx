@@ -111,7 +111,7 @@ function ReasonCard({ reason, onViewGraph, caseId }) {
 export default function DecisionOutput({ page, onNav, initialCase = 'digital-arrest', onContinueVerify, onViewGraph }) {
   const [caseId, setCaseId] = useState(initialCase);
   const [tick, setTick] = useState(0);
-  const [whyOpen, setWhyOpen] = useState('r0');
+  const [, setWhyOpen] = useState('r0');
   const [ledgerOpen, setLedgerOpen] = useState(null);
   const [uncOpen, setUncOpen] = useState(true);
   const [histOpen, setHistOpen] = useState(null);

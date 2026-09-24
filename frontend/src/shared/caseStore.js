@@ -13,6 +13,29 @@
 
 const cases = {};
 
+// ---- persistence (#37): verification history survives refresh/navigation.
+// localStorage only; the in-memory map stays the runtime source of truth.
+const LS_KEY = 'tg-verification-state-v1';
+
+function persist() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(cases));
+  } catch {
+    /* storage unavailable — in-memory state still works for the session */
+  }
+}
+
+(function hydrate() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    Object.keys(data || {}).forEach((k) => { cases[k] = data[k]; });
+  } catch {
+    /* corrupt cache — start clean */
+  }
+})();
+
 export function getVerificationState(caseId) {
   if (!cases[caseId]) {
     cases[caseId] = { verifications: [], openedAt: new Date().toISOString() };
@@ -27,6 +50,7 @@ export function recordVerification(caseId, entry) {
     at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     iso: new Date().toISOString(),
   });
+  persist();
   return s;
 }
 
@@ -43,4 +67,5 @@ export function latestChecks(caseId) {
 
 export function resetVerificationState(caseId) {
   cases[caseId] = { verifications: [], openedAt: new Date().toISOString() };
+  persist();
 }

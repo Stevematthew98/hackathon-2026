@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import PageHead from '../PageHead';
-import { SCENARIOS, PIPELINE_STAGES, REL_STYLE, bandClass } from './scenarios';
+import { SCENARIOS, PIPELINE_STAGES, REL_STYLE, bandClass, decideBand } from './scenarios';
 import './ForwardCheck.css';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -47,15 +47,22 @@ export default function ForwardCheck({ page, onNav }) {
   const [verify, setVerify] = useState('idle'); // idle | open | done
   const [verdictSent, setVerdictSent] = useState(false);
   const [bandOverride, setBandOverride] = useState(null);
-  const [stats, setStats] = useState(loadStats);
+  const [, setStats] = useState(loadStats);
   const timers = useRef([]);
   const pressT = useRef(null);
   const endRef = useRef(null);
   const sc = SCENARIOS[scenarioId];
-  const band = bandOverride || sc.verdict.band;
+  const band = bandOverride || decideBand(sc.relationships);
 
   const later = (ms, fn) => { const id = setTimeout(fn, ms); timers.current.push(id); };
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
+
+  // Surface a save failure instead of failing silently (#38).
+  const persistCase = (payload) => {
+    saveCase(payload).then((r) => {
+      if (!r.ok) setToast('Note: case saved on this device — demo server unreachable.');
+    });
+  };
 
   useEffect(() => () => { clearTimers(); clearTimeout(pressT.current); }, []);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [screen, tgStep, pipe, verify, verdictSent, menuOpen]);
@@ -102,7 +109,7 @@ export default function ForwardCheck({ page, onNav }) {
     later(1500, () => {
       setScreen('tg');
       bumpStats();
-      saveCase(caseSnapshot({ status: 'checking', band: null }));
+      persistCase(caseSnapshot({ status: 'checking', band: null }));
       // tg chat sequence
       later(700, () => setTgStep(1)); // case card
       later(1700, () => {
@@ -113,11 +120,11 @@ export default function ForwardCheck({ page, onNav }) {
       later(1700 + 900 * 6 + 1600, () => {
         setTgStep(4); // verdict
         // Persist the completed analysis on the same case
-        saveCase(caseSnapshot({
+        persistCase(caseSnapshot({
           status: 'analyzed',
-          band: sc.band,
-          reasons: sc.reasons,
-          verifyStep: sc.verifyStep,
+          band: decideBand(sc.relationships),
+          reasons: sc.verdict.reasons,
+          verifyStep: sc.verdict.verifyStep,
           claims: sc.claims.map((c) => ({ id: c.id, text: c.text, source: c.source, state: c.state })),
           relationships: sc.relationships.map((r) => ({ id: r.id, type: r.type, title: r.title, result: r.result })),
         }));
@@ -127,15 +134,15 @@ export default function ForwardCheck({ page, onNav }) {
 
   const doVerify = () => {
     setVerify('done');
-    const finalBand = sc.verification?.resolvesTo || sc.band;
+    const finalBand = sc.verification?.resolvesTo || decideBand(sc.relationships);
     if (sc.verification?.resolvesTo) setBandOverride(sc.verification.resolvesTo);
     // Persist the verification outcome on the same case
     if (sc.verification) {
-      saveCase(caseSnapshot({
+      persistCase(caseSnapshot({
         status: 'verified',
         band: finalBand,
-        reasons: sc.reasons,
-        verifyStep: sc.verifyStep,
+        reasons: sc.verdict.reasons,
+        verifyStep: sc.verdict.verifyStep,
         verification: {
           recommended: sc.verification.recommended,
           simulatedResult: sc.verification.simulatedResult,

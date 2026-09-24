@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import PageHead from '../PageHead';
 import { CASES, REL_META, NODE_KIND, REL_CHIPS } from './graphScenarios';
 import CheckWorkbench from './CheckWorkbench';
+import { latestChecks } from '../shared/caseStore';
 import './EvidenceGraph.css';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -128,11 +129,21 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
     if (!API) return;
     fetch(`${API}/api/guardian/cases`).then((r) => r.json())
       .then((d) => setBackendCount(Array.isArray(d) ? d.length : 0))
-      .catch(() => setBackendCount(null));
+      .catch(() => setBackendCount(-1)); // -1 = unreachable; never stuck on "checking"
   }, []);
 
   const unknownRels = useMemo(() => sc.relationships.filter((r) => r.type === 'UNKNOWN'), [sc]);
   const weakest = unknownRels[0] || sc.relationships.find((r) => r.type === 'ANOMALY') || null;
+
+  // ---- verification reflection (#16): if Idea 4 moved a relationship,
+  // Page 3 shows the verified transition instead of the stale base state.
+  const verifiedMap = useMemo(() => {
+    const m = {};
+    try {
+      latestChecks(caseId).forEach((v) => { if (v.relId && v.edgeAfter) m[v.relId] = v; });
+    } catch { /* store unavailable — graph shows base state */ }
+    return m;
+  }, [caseId]);
 
   // ---- guided tour (routes across both parts) ----
   useEffect(() => {
@@ -281,7 +292,7 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
               <div className="eg-techline">{techLine}</div>
               <div className="eg-relcount">{sc.relationships.length} relationships detected</div>
               <div className="eg-backend">
-                {API ? (backendCount === null ? 'Checking backend…' : `Backend connected · ${backendCount} case${backendCount === 1 ? '' : 's'} on record`) : 'Demo data · backend not configured'}
+                {API ? (backendCount === null ? 'Checking backend…' : backendCount === -1 ? 'Backend unreachable — showing demo data' : `Backend connected · ${backendCount} case${backendCount === 1 ? '' : 's'} on record`) : 'Demo data · backend not configured'}
               </div>
             </div>
 
@@ -354,6 +365,9 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
                         <span className="eg-rel-id">{r.id} · {r.check}</span>
                       </span>
                       <TypeBadge type={r.type} weak={r.supportLevel === 'weak'} />
+                      {verifiedMap[r.id]?.edgeAfter && (
+                        <span className="eg-verified-tag" title="Moved by an independent verification check">Verified → {verifiedMap[r.id].edgeAfter}</span>
+                      )}
                       <span className="eg-rel-go">›</span>
                     </button>
                   ))}
@@ -604,6 +618,13 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
                         <TypeBadge type={drawer.data.type} weak={drawer.data.supportLevel === 'weak'} />
                         <span className="eg-rel-id">{drawer.data.id} · {drawer.data.title}</span>
                       </div>
+                      {verifiedMap[drawer.data.id]?.edgeAfter && (
+                        <div className="eg-verified-banner">
+                          Verified update — this relationship moved:{' '}
+                          <b>{verifiedMap[drawer.data.id].effect?.from || 'UNKNOWN'} → {verifiedMap[drawer.data.id].edgeAfter}</b>.
+                          Recorded by an independent check in the Verification Loop; the decision layer reads this state.
+                        </div>
+                      )}
                       {drawer.data.supportLevel === 'weak' && (
                         <div className="eg-weak-banner">WEAK SUPPORT — RESEMBLANCE ONLY · cannot outweigh a conflict</div>
                       )}
