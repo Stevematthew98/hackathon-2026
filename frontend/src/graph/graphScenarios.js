@@ -241,3 +241,114 @@ export const LEGIT_BANK = {
 };
 
 export const CASES = { 'digital-arrest': DIGITAL_ARREST, 'legit-bank': LEGIT_BANK };
+
+// ---------------------------------------------------------------- workbench support
+// What each graph node *is* for the purpose of a check (workbench input types).
+export const NODE_WK = {
+  'digital-arrest': {
+    caller: 'person', name: 'person-name', org: 'org', warrant: 'document',
+    signatory: 'person-name', seal: 'seal', phone: 'phone',
+    directory: 'directory', voice: 'voice',
+  },
+  'legit-bank': {
+    caller: 'person', bank: 'org', phone: 'phone',
+    directory: 'directory', request: 'request',
+  },
+};
+
+// Which evidence chips each relationship draws on (chip -> relationship navigation).
+export const REL_CHIPS = {
+  'digital-arrest': {
+    R1: ['Call transcript', 'Caller identity claim', 'Warrant'],
+    R2: ['Phone number'],
+    R3: ['Warrant', 'Document seal'],
+    R4: ['Call transcript', 'Caller identity claim', 'Reference voice availability'],
+    R5: ['Warrant', 'Document seal'],
+  },
+  'legit-bank': {
+    R1: ['Call transcript', 'Caller phone number', 'Official bank directory'],
+    R2: ['Call transcript', 'Caller request'],
+  },
+};
+
+// Deterministic check methods available in the workbench. Each declares the
+// input types it accepts; anything else is an honest METHOD MISMATCH.
+export const WORKBENCH_METHODS = [
+  {
+    id: 'name-compare', label: 'Entity-name comparison',
+    needs: ['person-name', 'person-name'], needsLabel: 'two person-name nodes',
+    trace: (a, b) => [
+      `load node A · "${a.label}" <- ${a.source}`,
+      `load node B · "${b.label}" <- ${b.source}`,
+      'normalize · lowercase · strip titles and honorifics',
+      'compare entity identifiers · deterministic',
+      '-> result emitted',
+    ],
+  },
+  {
+    id: 'dir-lookup', label: 'Official-directory number lookup',
+    needs: ['phone', 'directory'], needsLabel: 'a phone number and a directory',
+    trace: (a, b) => [
+      `load number · "${a.label}" <- ${a.source}`,
+      `open directory · "${b.label}" <- ${b.source} (authoritative)`,
+      'exact-match search · no fuzzy matching',
+      '-> result emitted',
+    ],
+  },
+  {
+    id: 'template-compare', label: 'Seal / template comparison',
+    needs: ['seal', 'document'], needsLabel: 'a seal and a document',
+    trace: (a, b) => [
+      `load observed seal · "${a.label}"`,
+      `load document · "${b.label}"`,
+      'compare placement · border style · geometry',
+      '-> result emitted',
+    ],
+  },
+  {
+    id: 'voice-compare', label: 'Reference-voice comparison',
+    needs: ['person', 'voice'], needsLabel: 'a caller and a reference voice',
+    trace: (a, b) => [
+      'load call audio segment',
+      `request reference voice · "${b.label}" <- ${b.source}`,
+      'reference unavailable -> comparison cannot run',
+      '-> result emitted',
+    ],
+  },
+  {
+    id: 'layout-compare', label: 'Layout resemblance check',
+    needs: ['document', 'org'], needsLabel: 'a document and an organisation',
+    trace: (a, b) => [
+      `extract layout features · "${a.label}"`,
+      `load reference style · "${b.label}"`,
+      'compare masthead · columns · spacing (resemblance only)',
+      '-> result emitted',
+    ],
+  },
+  {
+    id: 'request-compare', label: 'Request pattern scan',
+    needs: ['request', 'org'], needsLabel: 'a request and an organisation',
+    trace: (a, b) => [
+      `scan request text · "${a.label}"`,
+      'patterns: OTP request · transfer request · remote access',
+      `compare against routine process · "${b.label}"`,
+      '-> result emitted',
+    ],
+  },
+];
+
+// Documented node-pair + method -> relationship id. Key: sorted node ids + method.
+// Anything compatible but undocumented honestly reports "no relationship detected".
+export const WORKBENCH_PAIRS = {
+  'digital-arrest': {
+    'name|signatory|name-compare': 'R1',
+    'directory|phone|dir-lookup': 'R2',
+    'seal|warrant|template-compare': 'R3',
+    'caller|voice|voice-compare': 'R4',
+    'org|warrant|layout-compare': 'R5',
+  },
+  'legit-bank': {
+    'directory|phone|dir-lookup': 'R1',
+    'bank|request|request-compare': 'R2',
+  },
+};
