@@ -16,10 +16,10 @@ export default function PageHead({ page, onNav, label }) {
           <button
             key={n}
             className={`g-dot${n === page ? ' on' : ''}`}
-            disabled={n > 4}
-            onClick={() => n <= 4 && onNav(n)}
-            title={n === 1 ? 'Page 1 · The Case Builds Itself' : n === 2 ? 'Page 2 · Forward-to-Check' : n === 3 ? 'Page 3 · The Evidence Graph' : n === 4 ? 'Page 4 · The Verification Loop' : `Page ${n} · coming next`}
-            aria-label={n === 1 ? 'Go to page 1' : n === 2 ? 'Go to page 2' : n === 3 ? 'Go to page 3' : n === 4 ? 'Go to page 4' : `Page ${n}, coming next`}
+            disabled={n > 5}
+            onClick={() => n <= 5 && onNav(n)}
+            title={n === 1 ? 'Page 1 · The Case Builds Itself' : n === 2 ? 'Page 2 · Forward-to-Check' : n === 3 ? 'Page 3 · The Evidence Graph' : n === 4 ? 'Page 4 · The Verification Loop' : 'Page 5 · Decision-Safe Output'}
+            aria-label={n === 1 ? 'Go to page 1' : n === 2 ? 'Go to page 2' : n === 3 ? 'Go to page 3' : n === 4 ? 'Go to page 4' : 'Go to page 5'}
           />
         ))}
         <span className="g-page-label">{label}</span>

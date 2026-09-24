@@ -41,8 +41,9 @@ export function TypeBadge({ type, weak }) {
   );
 }
 
-export default function EvidenceGraph({ page, onNav, onStartVerify }) {
-  const [caseId, setCaseId] = useState('digital-arrest');
+export default function EvidenceGraph({ page, onNav, onStartVerify, highlight }) {
+  const [caseId, setCaseId] = useState(highlight && CASES[highlight.caseId] ? highlight.caseId : 'digital-arrest');
+  const highlightRef = useRef(highlight); // one-shot: open a relationship passed from Idea 5
   const sc = CASES[caseId];
   const [extracting, setExtracting] = useState(true);
   const [shownClaims, setShownClaims] = useState(0);
@@ -105,6 +106,16 @@ export default function EvidenceGraph({ page, onNav, onStartVerify }) {
     setReplay(null);
     setFlashRels([]);
     setNodePos(Object.fromEntries(sc.nodes.map((n) => [n.id, { x: n.x, y: n.y }])));
+    // one-shot highlight from Idea 5: skip the animation, open the relationship
+    const hl = highlightRef.current;
+    if (hl && hl.caseId === caseId) {
+      highlightRef.current = null;
+      const rel = sc.relationships.find((r) => r.id === hl.relId);
+      setShownClaims(sc.claims.length);
+      setExtracting(false);
+      if (rel) setDrawer({ kind: 'rel', data: rel });
+      return;
+    }
     const n = sc.claims.length;
     for (let i = 1; i <= n; i++) timers.current.push(later(500 + i * 380, () => setShownClaims(i)));
     timers.current.push(later(500 + n * 380 + 600, () => setExtracting(false)));

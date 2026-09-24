@@ -141,6 +141,8 @@ export const VERIFY_CASES = {
           whyOne:
             'The goal is to resolve the highest-value uncertainty first rather than overwhelm the user with a checklist.',
         },
+        stake: { claimA: 'Caller claims: Inspector Ravi Kumar serves in the Cyber Crime Branch', claimB: 'Official department record (independent source)' },
+        graphRelId: 'R1',
         outcomes: OUTCOME,
         historyWhat: 'Officer identity — affiliation with Cyber Crime Branch',
         historyWhy: 'Load-bearing claim: the caller’s authority depends on it',
@@ -178,6 +180,8 @@ export const VERIFY_CASES = {
           whyOne:
             'The goal is to resolve the highest-value uncertainty first rather than overwhelm the user with a checklist.',
         },
+        stake: { claimA: 'Caller claims: the stated case reference is real', claimB: 'Official case record (independent source)' },
+        graphRelId: 'R1',
         outcomes: OUTCOME,
         historyWhat: 'Case reference — existence in official records',
         historyWhy: 'Next weakest link after the officer check was inconclusive',
@@ -241,6 +245,8 @@ export const VERIFY_CASES = {
           whyOne:
             'The goal is to resolve the highest-value uncertainty first rather than overwhelm the user with a checklist.',
         },
+        stake: { claimA: 'Caller claims: this is the City Trust Bank fraud team', claimB: 'Bank staff record (independent callback)' },
+        graphRelId: 'R1',
         outcomes: BANK_OUTCOME,
         historyWhat: 'Bank caller identity — staff confirmation',
         historyWhy: 'Load-bearing claim: every reassuring signal depends on it',
@@ -258,4 +264,103 @@ export const VERIFY_CASES = {
   },
 };
 
-export const VERIFY_IDS = ['digital-arrest', 'legit-bank'];
+const PARCEL_OUTCOME = {
+  negative: {
+    key: 'negative',
+    label: 'No such parcel or reference on record',
+    edgeAfter: 'CONFLICT',
+    verdict: 'HIGH RISK',
+    resultText: '“No parcel or reference matching this SMS exists on record.”',
+    verdictNote: 'Independent verification conflicts with the message’s core claim.',
+    nextAction: 'Do not pay, click the link, or reply. Delete the SMS and preserve it as evidence.',
+    sourceType: 'Courier / customs check via official contact',
+  },
+  positive: {
+    key: 'positive',
+    label: 'Yes, the parcel is confirmed',
+    edgeAfter: 'SUPPORT',
+    verdict: 'LOW RISK',
+    resultText: '“Yes — a parcel with this reference is held, and the fee can be paid at the official counter.”',
+    verdictNote: 'Consistent with available evidence.',
+    nextAction: 'No immediate action is required from TrustGuard. Pay only through the official counter or site.',
+    sourceType: 'Courier / customs check via official contact',
+  },
+  inconclusive: {
+    key: 'inconclusive',
+    label: 'Unable to verify',
+    edgeAfter: 'UNKNOWN',
+    verdict: 'NEEDS REVIEW',
+    resultText: 'Verification inconclusive — the office could neither confirm nor deny.',
+    verdictNote: 'TrustGuard cannot resolve this case from the available evidence.',
+    nextAction: 'Do not pay or click anything until independent verification is available.',
+    sourceType: 'Courier / customs check via official contact',
+  },
+};
+
+VERIFY_CASES['customs-sms'] = {
+  id: 'customs-sms',
+  tabLabel: 'Customs SMS Case',
+  caseId: 'CASE #2849',
+  caseType: 'Parcel / customs fee SMS',
+  pageTitle: 'The Verification Loop',
+  whyHere: 'Nothing independent connects the sender, the parcel, or the payment demand to the claimed department.',
+  initialVerdict: 'NEEDS REVIEW',
+  relatedRels: ['R1', 'R2', 'R3'],
+  relMeta: {
+    R1: { type: 'UNKNOWN', label: 'Claimed sender vs verifiable identity', color: '#8fa0b8' },
+    R2: { type: 'UNKNOWN', label: 'Parcel reference vs carrier records', color: '#8fa0b8' },
+    R3: { type: 'ANOMALY', label: 'Payment link domain vs official domains', color: '#f0a832' },
+  },
+  links: [
+    {
+      id: 'parcel-reference',
+      n: 1,
+      question: 'Is there actually a parcel held for you under reference PKG-88213?',
+      loadBearing: 'This is the load-bearing claim where the available evidence is thinnest.',
+      affects: ['claimed parcel', 'payment demand', 'sender authority'],
+      whyWeakest:
+        'The fee demand, the urgency, and the link all hang on one thing: that a parcel actually exists. The sender cannot be tied to any department from the available evidence, so the parcel reference is the one claim an independent source can settle directly. If no such parcel exists, the demand collapses; if it does, the remaining evidence must be weighed honestly.',
+      chain: {
+        nodes: ['SMS', 'Parcel PKG-88213', 'Official parcel record'],
+        connectors: ['claims parcel', 'confirm against'],
+        edgeLabel: 'Parcel existence',
+      },
+      evidenceAvailable: ['SMS text', 'reference number as sent'],
+      evidenceMissing: ['independent parcel record', 'independent sender confirmation'],
+      whyMatters:
+        'The threats in this message are attached to a specific parcel. If no such parcel exists in official records, the payment demand has no foundation.',
+      stake: { claimA: 'SMS claims: parcel PKG-88213 is held for you', claimB: 'Official parcel record (independent source)' },
+      graphRelId: 'R2',
+      recommendation: {
+        title: 'ONE INDEPENDENT CHECK',
+        action:
+          'Contact the courier or customs office through contact information you obtain yourself — not the SMS — and ask whether a parcel with this reference is held for you.',
+        doNot: [
+          'click the link in the SMS',
+          'call the number in the SMS',
+          'pay anything through the SMS link',
+        ],
+        independentLine: 'Use an independent source.',
+        whyIndependent: 'The verification path must not depend on evidence controlled by the person being verified.',
+        whyThisCheck:
+          'TrustGuard selected this verification because resolving this claim affects every other relationship in the case.',
+        whyOne:
+          'The goal is to resolve the highest-value uncertainty first rather than overwhelm the user with a checklist.',
+      },
+      outcomes: PARCEL_OUTCOME,
+      historyWhat: 'Parcel reference — existence in official records',
+      historyWhy: 'Load-bearing claim: the payment demand depends on it',
+    },
+  ],
+  quiz: {
+    prompt: 'The SMS gives you a link and a phone number. Which source can you actually trust for this check?',
+    options: [
+      { label: 'The payment link inside the SMS', correct: false, why: 'Controlled by the sender. A link in the message proves nothing about the message.' },
+      { label: 'The phone number in the SMS', correct: false, why: 'Supplied by the claimant. Same problem as trusting the SMS directly.' },
+      { label: 'The courier’s official site, typed by you — or their published helpline', correct: true, why: 'Obtained independently of the SMS. The sender cannot change it, spoof it, or intercept it.' },
+      { label: 'A friend who received the same SMS', correct: false, why: 'A second copy of the same claim is not a second source.' },
+    ],
+  },
+};
+
+export const VERIFY_IDS = ['digital-arrest', 'legit-bank', 'customs-sms'];

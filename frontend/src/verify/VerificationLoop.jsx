@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import PageHead from '../PageHead';
 import { VERIFY_CASES, VERIFY_IDS } from './verifyScenarios';
+import { recordVerification, resetVerificationState } from '../shared/caseStore';
 import VerifyChain from './VerifyChain';
 import './VerificationLoop.css';
 
@@ -58,6 +59,7 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
   const resetAll = (nextCase) => {
     timers.current.forEach(clearTimeout);
     timers.current = [];
+    resetVerificationState(nextCase);
     setCaseId(nextCase);
     setPart(1);
     setPickedId(null);
@@ -109,6 +111,22 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
         caseId: scase.caseId,
       },
     ]);
+    // shared with Idea 5 (Decision-Safe Output)
+    recordVerification(scase.id, {
+      linkId: link.id,
+      relId: link.graphRelId,
+      question: link.question,
+      what: link.historyWhat,
+      why: link.historyWhy,
+      sourceType: o.sourceType,
+      method: 'Independent source check',
+      resultText: o.resultText,
+      edgeAfter: o.edgeAfter,
+      outcomeKey: key,
+      verdict: o.verdict,
+      nextAction: o.nextAction,
+      state: key === 'inconclusive' ? 'Inconclusive' : 'Completed',
+    });
     later(() => setShowHist(true), 400);
   };
 
@@ -120,6 +138,21 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
       ...h,
       { what: link.historyWhat, why: link.historyWhy, effect: null, verdict: null, result: 'Verification stopped by the user before any result.', state: 'Stopped', at, caseId: scase.caseId },
     ]);
+    recordVerification(scase.id, {
+      linkId: link.id,
+      relId: link.graphRelId,
+      question: link.question,
+      what: link.historyWhat,
+      why: link.historyWhy,
+      sourceType: null,
+      method: 'Independent source check',
+      resultText: 'Verification stopped by the user before any result.',
+      edgeAfter: null,
+      outcomeKey: 'stopped',
+      verdict: null,
+      nextAction: null,
+      state: 'Stopped',
+    });
     setPhase('stopped');
   };
 
@@ -543,6 +576,9 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                     </div>
                   </div>
                   <p className="vl-note dim">The loop is complete — the new independent evidence is folded into the case above.</p>
+                  <button className="vl-btn primary" onClick={() => onNav(5)}>
+                    See the decision →
+                  </button>
                   <button className="vl-btn ghost" onClick={() => (onBack ? onBack() : onNav(3))}>
                     ← Back to Evidence Graph
                   </button>
@@ -560,6 +596,9 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                 <p className="vl-note">No conclusion was forced because independent evidence was not obtained.</p>
                 <button className="vl-btn primary" onClick={() => { setPart(1); setPhase('prep'); setOutcome(null); setOutcomeKey(null); }}>
                   Back to the weakest link
+                </button>
+                <button className="vl-btn ghost" onClick={() => onNav(5)}>
+                  See the decision →
                 </button>
               </div>
             )}

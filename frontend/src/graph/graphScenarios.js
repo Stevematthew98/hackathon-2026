@@ -240,7 +240,105 @@ export const LEGIT_BANK = {
   },
 };
 
-export const CASES = { 'digital-arrest': DIGITAL_ARREST, 'legit-bank': LEGIT_BANK };
+
+// ---------------------------------------------------------------- customs parcel SMS
+// Scenario C — deliberately thin evidence. Nothing independent connects the
+// sender, the parcel reference, or the payment demand to the claimed
+// department, so this case demonstrates honest abstention (NEEDS REVIEW).
+export const CUSTOMS_SMS = {
+  id: 'customs-sms',
+  tabLabel: 'Customs SMS Case',
+  caseId: 'CASE #2849',
+  caseType: 'Parcel / customs fee SMS',
+  statusLine: 'Analyzing relationships between claims and evidence',
+  evidence: [
+    'SMS text',
+    'Sender number',
+    'Parcel reference',
+    'Payment link',
+  ],
+  rawStatement: '“Customs Dept: Your parcel PKG-88213 is held. Pay Rs. 2,140 clearance fee within 24 hrs: customs-clear-fee.com/pay”',
+  extractNote: 'AI extracts meaning into structured claims. It does not determine truth.',
+  claims: [
+    { id: 'C1', label: 'Claimed sender', value: 'Customs Clearance Dept', source: 'SMS text', location: 'SMS · header', method: 'AI extraction', status: 'CLAIM' },
+    { id: 'C2', label: 'Parcel reference', value: 'PKG-88213', source: 'SMS text', location: 'SMS · body', method: 'AI extraction', status: 'CLAIM' },
+    { id: 'C3', label: 'Fee demand', value: 'Rs. 2,140 within 24 hours', source: 'SMS text', location: 'SMS · body', method: 'AI extraction', status: 'CLAIM' },
+    { id: 'C4', label: 'Sender number', value: '+91 ••••• 55671', source: 'SMS metadata', location: 'SMS record', method: 'Deterministic capture', status: 'CLAIM' },
+    { id: 'C5', label: 'Payment link', value: 'customs-clear-fee.com/pay', source: 'SMS text', location: 'SMS · body', method: 'Deterministic capture', status: 'CLAIM' },
+  ],
+  relationships: [
+    {
+      id: 'R1', type: 'UNKNOWN', title: 'Claimed sender vs verifiable identity',
+      claimA: 'Customs Clearance Dept', sourceA: 'SMS text',
+      claimB: 'Official sender record', sourceB: 'Not available',
+      check: 'Sender identity check', method: 'Not available',
+      result: 'No independent source ties this number to the claimed department.',
+      confidence: '—',
+      uncertainty: 'The sender cannot be confirmed or ruled out from the available evidence. The system is comfortable saying: I don’t know.',
+      why: 'The entire message borrows authority from a department name — but nothing independent connects the sender to that department.',
+      evidence: [
+        { label: 'SMS header', text: 'From: +91 ••••• 55671 · No registered sender ID for a customs department.', highlight: 'No registered sender ID' },
+      ],
+      evidenceNote: 'Missing evidence is shown as missing — never filled in with a guess.',
+    },
+    {
+      id: 'R2', type: 'UNKNOWN', title: 'Parcel reference vs carrier records',
+      claimA: 'PKG-88213', sourceA: 'SMS text',
+      claimB: 'Carrier / customs record', sourceB: 'Not available in prototype',
+      check: 'Reference lookup', method: 'Not available',
+      result: 'No independent record is available to check this reference against.',
+      confidence: '—',
+      uncertainty: 'A real parcel could exist — or the reference could be invented. The available evidence cannot tell.',
+      why: 'The payment demand hangs on this reference. Without an independent record, the reference is just characters in a message.',
+      evidence: [
+        { label: 'Reference', text: 'PKG-88213 appears only in the SMS itself. No corroborating record is on file.', highlight: 'only in the SMS itself' },
+      ],
+      evidenceNote: 'A claim that only the claimant repeats is not evidence.',
+    },
+    {
+      id: 'R3', type: 'ANOMALY', title: 'Payment link domain vs official domains',
+      claimA: 'customs-clear-fee.com', sourceA: 'SMS text',
+      claimB: 'Known official domains', sourceB: 'Public records',
+      check: 'Domain comparison', method: 'Deterministic comparison',
+      result: 'The domain does not match any known official customs domain.',
+      confidence: 'Medium',
+      uncertainty: 'An unfamiliar domain is suspicious, not disproof — but never pay through a link you did not independently verify.',
+      why: 'Official bodies do not collect clearance fees through lookalike domains sent in SMS links.',
+      evidence: [
+        { label: 'Link domain', text: 'customs-clear-fee.com — not present in the list of known official customs domains.', highlight: 'not present' },
+      ],
+      evidenceNote: 'An anomaly raises the question; only an independent check can answer it.',
+    },
+  ],
+  nodes: [
+    { id: 'msg', label: 'SMS message', kind: 'evidence', x: 210, y: 60, detail: 'The SMS as received. Everything claimed inside it is unverified.', source: 'SMS text', status: 'UNDER REVIEW' },
+    { id: 'sender', label: 'Customs Clearance Dept', kind: 'claim', x: 90, y: 190, detail: 'Sender name claimed in the SMS header.', source: 'SMS text', status: 'CLAIM' },
+    { id: 'number', label: 'Sender number', kind: 'evidence', x: 330, y: 190, detail: 'The number the SMS came from, captured from metadata.', source: 'SMS metadata', status: 'CHECKED' },
+    { id: 'ref', label: 'PKG-88213', kind: 'claim', x: 90, y: 300, detail: 'Parcel reference as stated in the SMS.', source: 'SMS text', status: 'CLAIM' },
+    { id: 'paylink', label: 'Payment link', kind: 'evidence', x: 330, y: 300, detail: 'The payment URL inside the SMS.', source: 'SMS text', status: 'UNDER REVIEW' },
+    { id: 'official', label: 'Official records', kind: 'unavailable', x: 210, y: 300, detail: 'No independent official record is reachable in this prototype.', source: '—', status: 'UNAVAILABLE' },
+  ],
+  edges: [
+    { id: 'E0a', from: 'msg', to: 'sender', neutral: true, label: 'claims' },
+    { id: 'E0b', from: 'msg', to: 'number', neutral: true, label: 'sent from' },
+    { id: 'E0c', from: 'msg', to: 'ref', neutral: true, label: 'mentions' },
+    { id: 'E0d', from: 'msg', to: 'paylink', neutral: true, label: 'contains' },
+    { id: 'R1', from: 'sender', to: 'official' },
+    { id: 'R2', from: 'ref', to: 'official' },
+    { id: 'R3', from: 'paylink', to: 'official' },
+  ],
+  interpretation: {
+    headline: 'Too little independent evidence to settle this case.',
+    counts: '2 UNKNOWN · 1 ANOMALY · 0 CONFLICTS · 0 SUPPORT',
+    note: 'Decision interpretation is handled by the Decision-Safe Output layer.',
+  },
+};
+
+export const CASES = {
+  'digital-arrest': DIGITAL_ARREST,
+  'legit-bank': LEGIT_BANK,
+  'customs-sms': CUSTOMS_SMS,
+};
 
 // ---------------------------------------------------------------- workbench support
 // What each graph node *is* for the purpose of a check (workbench input types).
@@ -253,6 +351,10 @@ export const NODE_WK = {
   'legit-bank': {
     caller: 'person', bank: 'org', phone: 'phone',
     directory: 'directory', request: 'request',
+  },
+  'customs-sms': {
+    msg: 'document', sender: 'org', number: 'phone',
+    ref: 'reference', paylink: 'document', official: 'directory',
   },
 };
 
@@ -268,6 +370,11 @@ export const REL_CHIPS = {
   'legit-bank': {
     R1: ['Call transcript', 'Caller phone number', 'Official bank directory'],
     R2: ['Call transcript', 'Caller request'],
+  },
+  'customs-sms': {
+    R1: ['SMS text', 'Sender number'],
+    R2: ['SMS text', 'Parcel reference'],
+    R3: ['SMS text', 'Payment link'],
   },
 };
 
@@ -350,5 +457,8 @@ export const WORKBENCH_PAIRS = {
   'legit-bank': {
     'directory|phone|dir-lookup': 'R1',
     'bank|request|request-compare': 'R2',
+  },
+  'customs-sms': {
+    'number|official|dir-lookup': 'R1',
   },
 };
