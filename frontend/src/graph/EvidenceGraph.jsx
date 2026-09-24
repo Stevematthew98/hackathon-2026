@@ -333,7 +333,7 @@ export default function EvidenceGraph({ page, onNav }) {
               {/* ---------- relationship list (primary) ---------- */}
               <section className={`eg-card${glowKey === 'list' ? ' eg-tour-glow' : ''}`} ref={(el) => { secRefs.current.list = el; }}>
                 <div className="eg-card-head">Evidence relationships</div>
-                <p className="eg-list-sub">The list is the investigation. The graph below supports it.</p>
+                <p className="eg-list-sub">The list is the investigation. The graph in Part 2 supports it.</p>
                 <div className="eg-rels">
                   {sc.relationships.map((r) => (
                     <button key={r.id} className={`eg-rel${flashRels.includes(r.id) ? ' eg-flash' : ''}`} onClick={() => openRel(r)}>
