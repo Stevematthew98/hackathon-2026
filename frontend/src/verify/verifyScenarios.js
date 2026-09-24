@@ -105,7 +105,7 @@ export const VERIFY_CASES = {
     relMeta: {
       R1: { type: 'CONFLICT', label: 'Caller identity vs warrant signatory', color: '#f87171' },
       R2: { type: 'ANOMALY', label: 'Caller number vs official directory', color: '#f0a832' },
-      R4: { type: 'UNKNOWN', label: 'Voice cannot be matched to the named officer', color: '#8fa0b8' },
+      R4: { type: 'UNKNOWN', label: 'Caller voice vs reference voice', color: '#8fa0b8' },
     },
     links: [
       {
