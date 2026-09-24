@@ -1,7 +1,7 @@
-import TrustGuard from './TrustGuard'
+import Guardian from './guardian/Guardian'
 
 function App() {
-  return <TrustGuard />
+  return <Guardian />
 }
 
 export default App
