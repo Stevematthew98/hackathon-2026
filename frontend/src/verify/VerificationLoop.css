@@ -274,3 +274,42 @@
   background: none; border: none; cursor: pointer; font-family: inherit;
   color: #7fb3f0; font-size: 12.5px; padding: 0 0 0 6px;
 }
+
+/* ---- auto-run: the loop plays itself (Idea 4 runs like Ideas 1-2) ---- */
+.vl-auto { margin: 12px 14px; }
+.vl-card .vl-auto.in-card { margin: 12px 0 4px; }
+.vl-auto-row {
+  display: flex; align-items: center; gap: 9px;
+  color: #c6d2e2; font-size: 13px;
+}
+.vl-auto-pulse {
+  width: 9px; height: 9px; border-radius: 50%; flex: none;
+  background: #f0a832; box-shadow: 0 0 0 3px rgba(240, 168, 50, 0.18);
+  animation: vl-pulse 1.2s ease-in-out infinite;
+}
+@keyframes vl-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.8); }
+}
+.vl-takeover {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  font-family: inherit; color: #8fa0b8; font-size: 12.5px;
+  text-decoration: underline; padding: 4px 2px; flex: none;
+}
+.vl-takeover:active { color: #c6d2e2; }
+.vl-autobar {
+  height: 3px; background: #1a2534; border-radius: 2px;
+  margin-top: 10px; overflow: hidden;
+}
+.vl-autobar > span {
+  display: block; height: 100%; width: 0;
+  background: #f0a832; border-radius: 2px;
+  animation: vl-fill 3.5s linear forwards;
+}
+.vl-autobar.slow > span { animation-duration: 3.2s; }
+.vl-autobar.slower > span { animation-duration: 5s; }
+@keyframes vl-fill { to { width: 100%; } }
+@media (prefers-reduced-motion: reduce) {
+  .vl-auto-pulse, .vl-autobar > span { animation: none; }
+  .vl-autobar > span { width: 100%; }
+}

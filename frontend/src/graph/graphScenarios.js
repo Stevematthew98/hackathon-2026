@@ -174,6 +174,9 @@ export const DIGITAL_ARREST = {
           'use contact information supplied by the claimant',
         ],
         independentLine: 'Use an independent source.',
+        // Canonical demo outcome for this claim. The Idea 4 auto-run plays
+        // this outcome (DEMO MODE — the live product performs the real check).
+        scriptedOutcome: 'denied',
         outcomes: {
           confirmed: {
             label: 'Officer and case confirmed',
@@ -310,6 +313,9 @@ export const LEGIT_BANK = {
           'share OTPs or credentials during the callback',
         ],
         independentLine: 'Use an independent source.',
+        // Canonical demo outcome for this claim. The Idea 4 auto-run plays
+        // this outcome (DEMO MODE — the live product performs the real check).
+        scriptedOutcome: 'confirmed',
         outcomes: {
           confirmed: {
             label: 'Yes, the bank confirmed the call',
@@ -415,6 +421,9 @@ export const CUSTOMS_SMS = {
           'reply to the SMS',
         ],
         independentLine: 'Use an independent source.',
+        // Canonical demo outcome for this claim. The Idea 4 auto-run plays
+        // this outcome (DEMO MODE — the live product performs the real check).
+        scriptedOutcome: 'inconclusive',
         outcomes: {
           confirmed: {
             label: 'Yes, the department confirmed the message',
@@ -470,6 +479,9 @@ export const CUSTOMS_SMS = {
           'pay anything through the SMS link',
         ],
         independentLine: 'Use an independent source.',
+        // Canonical demo outcome for this claim. The Idea 4 auto-run plays
+        // this outcome (DEMO MODE — the live product performs the real check).
+        scriptedOutcome: 'inconclusive',
         outcomes: {
           confirmed: {
             label: 'Yes, the parcel is confirmed',
