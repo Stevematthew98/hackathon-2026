@@ -365,9 +365,6 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
                       {r.verification && (
                         <span className="eg-verified-tag" title="Moved by an independent verification check">Independent check → {r.verification.newStatus}</span>
                       )}
-                      {r.crossModel && (
-                        <span className="eg-xm-tag" title={`Recorded by the cross-model lab · ${r.crossModel.model} · ${r.crossModel.recordedAt}`}>Cross-model</span>
-                      )}
                       <span className="eg-rel-go">›</span>
                     </button>
                   ))}

@@ -1,15 +1,13 @@
 // Cross-Model Verification scenarios (Page 6, optional lab).
 //
-// One evidence item per case, examined by three independent models. Each
-// model uses a different method and reports a structured finding in the
-// SAME vocabulary as the Evidence Graph (SUPPORT / CONFLICT / UNKNOWN) —
-// no scores, no percentages, no verdicts.
+// Three image exhibits. Each image is examined by the same three forensic
+// models, each using a different method. Findings use the Evidence Graph
+// vocabulary only (Consistent / Inconsistent / Cannot determine) — no
+// scores, no percentages, no verdicts.
 //
-// All model outputs here are SCRIPTED for the demo (DEMO MODE). In the live
-// product each model would run for real. Findings are recorded into the
-// shared case state and appear in the Evidence Graph with cross-model
-// provenance; they are base relationships (never "verified", never
-// material), so the locked Page 5 decision narratives cannot shift.
+// The exhibit images are AI-generated demo props, and every model output
+// below is SCRIPTED for the demo (DEMO MODE). In the live product each
+// model would run for real.
 
 export const FINDING_LABEL = {
   SUPPORT: 'Consistent',
@@ -17,153 +15,120 @@ export const FINDING_LABEL = {
   UNKNOWN: 'Cannot determine',
 };
 
-export const XMODEL_CASES = {
-  'digital-arrest': {
-    evidenceLabel: 'Call audio',
-    evidenceNote: 'The recorded call, as captured on the device.',
+export const EXHIBITS = {
+  'warrant-doc': {
+    exhibit: 'Exhibit A',
+    title: 'Warrant document',
+    img: '/xm/warrant-doc.jpg',
+    imgAlt: 'Scanned arrest warrant document with seal and signature',
+    source: 'Shared on the Digital Arrest call',
     models: [
       {
-        id: 'svd',
-        name: 'Synthetic-voice detector',
-        method: 'Spectral artifact scan',
-        finding: 'UNKNOWN',
-        claimA: 'Call audio stream',
-        sourceA: 'Call recording',
-        claimB: 'Synthetic-voice artifact patterns',
-        sourceB: 'Model reference set',
-        check: 'Spectral artifact scan',
-        result: 'No clear synthetic-voice artifacts detected in the compressed call audio.',
-        uncertainty:
-          'Absence of artifacts is not proof of a human speaker — compression destroys the traces this model looks for.',
-        why: 'A cloned or synthetic voice would change what the caller’s words are worth.',
-      },
-      {
-        id: 'cpath',
-        name: 'Call-path forensics',
-        method: 'Signaling and routing analysis',
+        id: 'gen',
+        name: 'Generation detector',
+        method: 'Diffusion / GAN artifact scan',
         finding: 'CONFLICT',
-        claimA: 'Observed call routing path',
-        sourceA: 'Call metadata',
-        claimB: 'Official department exchange routing',
-        sourceB: 'Telecom routing records',
-        check: 'Call-path comparison',
-        result: 'The call arrived over an internet relay path — inconsistent with an official department landline exchange.',
-        uncertainty: 'Routing describes the path, not the person. A relay alone identifies nobody.',
-        why: 'The caller claims an official landline identity; the path tells a different story.',
+        result:
+          'Diffusion-model texture artifacts across the seal and signature regions — inconsistent with a flatbed scan of ink on paper.',
+        uncertainty:
+          'Artifact detectors are tuned on known generators. A new generator could evade them; absence of artifacts would not prove authenticity.',
       },
       {
-        id: 'splice',
-        name: 'Splice detector',
-        method: 'Waveform continuity analysis',
-        finding: 'SUPPORT',
-        claimA: 'Recording continuity',
-        sourceA: 'Call recording',
-        claimB: 'Single uninterrupted take',
-        sourceB: 'Waveform analysis',
-        check: 'Edit-point scan',
-        result: 'One continuous recording — no splice or edit points found.',
-        uncertainty: 'A continuous recording can still be fully synthetic or performed live. Continuity is not authenticity.',
-        why: 'Edits would suggest the audio was assembled; none were found.',
+        id: 'manip',
+        name: 'Manipulation detector',
+        method: 'Splice, copy-move and inpainting trace analysis',
+        finding: 'CONFLICT',
+        result:
+          'The seal shows splice boundaries and lighting inconsistent with the page — composited from another source.',
+        uncertainty:
+          'Heavy compression can mimic splice traces. This is evidence of compositing, not proof of intent.',
+      },
+      {
+        id: 'prov',
+        name: 'Provenance check',
+        method: 'Metadata and capture-pipeline inspection',
+        finding: 'UNKNOWN',
+        result: 'No camera or scanner metadata survives; export tags were stripped before this copy.',
+        uncertainty:
+          'Stripped metadata is common when images pass through messaging apps — it proves nothing by itself.',
       },
     ],
   },
-  'legit-bank': {
-    evidenceLabel: 'Call audio',
-    evidenceNote: 'The recorded call, as captured on the device.',
+  'kyc-selfie': {
+    exhibit: 'Exhibit B',
+    title: 'KYC video selfie',
+    img: '/xm/kyc-selfie.jpg',
+    imgAlt: 'Video call frame of a person holding up an identity card',
+    source: 'Forwarded suspicious message',
     models: [
       {
-        id: 'svd',
-        name: 'Synthetic-voice detector',
-        method: 'Spectral artifact scan',
-        finding: 'UNKNOWN',
-        claimA: 'Call audio stream',
-        sourceA: 'Call recording',
-        claimB: 'Synthetic-voice artifact patterns',
-        sourceB: 'Model reference set',
-        check: 'Spectral artifact scan',
-        result: 'No clear synthetic-voice artifacts detected in the compressed call audio.',
+        id: 'gen',
+        name: 'Generation detector',
+        method: 'Diffusion / GAN artifact scan',
+        finding: 'CONFLICT',
+        result:
+          'Facial region shows generative upsampling artifacts — inconsistent with a webcam sensor capture.',
         uncertainty:
-          'Absence of artifacts is not proof of a human speaker — compression destroys the traces this model looks for.',
-        why: 'A cloned or synthetic voice would change what the caller’s words are worth.',
+          'Heavy compression also softens detail. The model weighs multiple traces; no single trace decides.',
       },
       {
-        id: 'cpath',
-        name: 'Call-path forensics',
-        method: 'Signaling and routing analysis',
+        id: 'manip',
+        name: 'Manipulation detector',
+        method: 'Splice, copy-move and inpainting trace analysis',
         finding: 'SUPPORT',
-        claimA: 'Observed call routing path',
-        sourceA: 'Call metadata',
-        claimB: 'Bank’s published customer-care exchange',
-        sourceB: 'Official bank directory',
-        check: 'Call-path comparison',
-        result: 'The call path terminates at the bank’s published customer-care exchange — matching the directory record.',
-        uncertainty: 'Caller-ID and routing can be spoofed. This corroborates the directory match, nothing more.',
-        why: 'The path agrees with the bank’s own published records.',
+        result:
+          'No splice, copy-move or inpainting traces — consistent with a fully synthetic render, which has nothing to splice.',
+        uncertainty:
+          'The subtle one: “no manipulation found” does not mean “real”. A fully generated face leaves nothing to splice.',
       },
       {
-        id: 'splice',
-        name: 'Splice detector',
-        method: 'Waveform continuity analysis',
-        finding: 'SUPPORT',
-        claimA: 'Recording continuity',
-        sourceA: 'Call recording',
-        claimB: 'Single uninterrupted take',
-        sourceB: 'Waveform analysis',
-        check: 'Edit-point scan',
-        result: 'One continuous recording — no splice or edit points found.',
-        uncertainty: 'A continuous recording can still be fully synthetic or performed live. Continuity is not authenticity.',
-        why: 'Edits would suggest the audio was assembled; none were found.',
+        id: 'prov',
+        name: 'Provenance check',
+        method: 'Metadata and capture-pipeline inspection',
+        finding: 'UNKNOWN',
+        result: 'No EXIF data; the frame arrived through a screen-capture pipeline.',
+        uncertainty: 'Screenshots strip provenance by design — the absence says nothing about the face.',
       },
     ],
   },
-  'customs-sms': {
-    evidenceLabel: 'Payment link',
-    evidenceNote: 'customs-clear-fee.com/pay — as it arrived in the SMS.',
+  'customs-qr': {
+    exhibit: 'Exhibit C',
+    title: 'Customs payment notice',
+    img: '/xm/customs-qr.jpg',
+    imgAlt: 'Printed customs fee payment notice with a QR code, photographed on a desk',
+    source: 'Photo of a fee notice sent with a payment demand',
     models: [
       {
-        id: 'domage',
-        name: 'Domain-age lookup',
-        method: 'WHOIS record check',
+        id: 'gen',
+        name: 'Generation detector',
+        method: 'Diffusion / GAN artifact scan',
         finding: 'CONFLICT',
-        claimA: 'customs-clear-fee.com registration age',
-        sourceA: 'WHOIS record',
-        claimB: 'Expected department domain history',
-        sourceB: 'Domain registration norms',
-        check: 'Domain-age comparison',
-        result: 'The domain was registered 6 days ago. Official departments do not collect fees through week-old domains.',
-        uncertainty: 'Domain age is circumstantial — a new domain is not proof of fraud.',
-        why: 'The link borrows a department’s authority; its history does not match.',
+        result:
+          'Paper grain and QR edges show diffusion synthesis traces — inconsistent with a photograph of real print.',
+        uncertainty:
+          'Artifact detectors are tuned on known generators. A new generator could evade them.',
       },
       {
-        id: 'repfeed',
-        name: 'URL-reputation feed',
-        method: 'Threat-feed lookup',
-        finding: 'UNKNOWN',
-        claimA: 'customs-clear-fee.com reputation',
-        sourceA: 'Threat intelligence feeds',
-        claimB: 'Known-good / known-bad lists',
-        sourceB: 'Feed records',
-        check: 'Reputation lookup',
-        result: 'No reputation record — the domain is too new for feeds to have seen it.',
-        uncertainty: 'No record is not a clean record.',
-        why: 'Reputation feeds only know what they have already seen.',
+        id: 'manip',
+        name: 'Manipulation detector',
+        method: 'Splice, copy-move and inpainting trace analysis',
+        finding: 'CONFLICT',
+        result:
+          'The QR block shows paste boundaries against the page background — inserted after the page was rendered.',
+        uncertainty:
+          'Paste boundaries show the QR was added later. They do not say where the QR leads.',
       },
       {
-        id: 'redir',
-        name: 'Redirect-chain analysis',
-        method: 'Link-resolution trace',
-        finding: 'CONFLICT',
-        claimA: 'Observed redirect chain',
-        sourceA: 'Link-resolution trace',
-        claimB: 'Official payment-page behavior',
-        sourceB: 'Web norms for official payments',
-        check: 'Redirect-hop analysis',
-        result: 'The link hops through two unrelated redirectors before landing — atypical for an official payment page.',
-        uncertainty: 'Redirectors alone do not prove malicious intent.',
-        why: 'Official payment pages resolve directly; this one does not.',
+        id: 'prov',
+        name: 'Provenance check',
+        method: 'Metadata and capture-pipeline inspection',
+        finding: 'SUPPORT',
+        result: 'Intact phone-camera EXIF — the photograph itself was taken with a real camera.',
+        uncertainty:
+          'Provenance authenticates the photograph, not what the photograph shows. A real photo of a fake notice is still a fake notice.',
       },
     ],
   },
 };
 
-export const XMODEL_IDS = Object.keys(XMODEL_CASES);
+export const EXHIBIT_IDS = Object.keys(EXHIBITS);

@@ -19,7 +19,7 @@ function App() {
   if (page === 2) return <ForwardCheck page={page} onNav={nav} />;
   if (page === 4) return <VerificationLoop page={page} onNav={nav} initialCase={verifyCase || 'digital-arrest'} />;
   if (page === 5) return <DecisionOutput page={page} onNav={nav} initialCase={verifyCase || 'digital-arrest'} onContinueVerify={goVerify} onViewGraph={goGraph} />;
-  if (page === 6) return <CrossModel page={page} onNav={nav} initialCase={verifyCase || 'digital-arrest'} />;
+  if (page === 6) return <CrossModel page={page} onNav={nav} />;
   return <EvidenceGraph key={graphHighlight ? `g-${graphHighlight.key}` : 'g-plain'} page={page} onNav={nav} onStartVerify={goVerify} highlight={graphHighlight} />;
 }
 

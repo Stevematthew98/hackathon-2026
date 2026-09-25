@@ -11,7 +11,7 @@ import { useMemo, useState } from 'react';
 import PageHead from '../PageHead';
 import { CASES } from '../graph/graphScenarios';
 import { buildDecision, DECISION_IDS, VERDICTS } from './decisionEngine';
-import { resetVerificationState, clearCrossModelState } from '../shared/caseStore';
+import { resetVerificationState } from '../shared/caseStore';
 import { downloadReport } from './reportExport';
 import './DecisionOutput.css';
 
@@ -110,7 +110,6 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
 
   const restart = () => {
     resetVerificationState(caseId);
-    clearCrossModelState(caseId);
     setTick((t) => t + 1);
     setWhyOpen('r0');
     setHistOpen(null);

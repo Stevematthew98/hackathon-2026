@@ -15,27 +15,18 @@
   padding: 8px 10px; line-height: 1.45;
 }
 
-.xm-caseswitch { display: flex; gap: 6px; margin: 12px 0 4px; flex-wrap: wrap; }
-.xm-casebtn {
-  background: #131c28; color: #8b98ac; border: 1px solid #243044;
-  border-radius: 999px; padding: 7px 12px; font-size: 12px; cursor: pointer;
+/* exhibit picker */
+.xm-exhibits { display: flex; gap: 8px; margin: 12px 0 4px; }
+.xm-exhibit {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  background: #131c28; border: 1px solid #243044; border-radius: 12px;
+  padding: 8px; cursor: pointer; text-align: left;
 }
-.xm-casebtn.on { color: #fff; border-color: #f0a832; background: #1a2331; }
-
-.xm-evrow {
-  margin: 10px 0 4px; padding: 10px 12px; background: #101823;
-  border: 1px solid #1e2a3c; border-radius: 10px;
-}
-.xm-ev-label {
-  display: block; font-size: 11px; text-transform: uppercase;
-  letter-spacing: 1px; color: #7f8ea3; margin-bottom: 4px;
-}
-.xm-evrow b { color: #e8eef6; font-size: 15px; }
-.xm-ev-note { display: block; color: #8b98ac; font-size: 12.5px; margin-top: 4px; }
-
-.xm-caseid-row { display: flex; gap: 10px; align-items: baseline; margin: 8px 0 2px; }
-.xm-caseid { color: #c6d2e2; font-size: 13px; font-weight: 700; }
-.xm-castype { color: #7f8ea3; font-size: 12.5px; }
+.xm-exhibit.on { border-color: #f0a832; background: #1a2331; }
+.xm-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+.xm-exhibit-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.xm-exhibit-meta b { color: #e8eef6; font-size: 12px; }
+.xm-exhibit-meta span { color: #7f8ea3; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .xm-takeover {
   position: absolute; top: 18px; right: 16px;
@@ -43,6 +34,17 @@
   border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer;
 }
 .xm-takeover:hover { color: #e8eef6; border-color: #3a4d66; }
+
+/* exhibit image */
+.xm-image-wrap { margin: 10px 16px 4px; }
+.xm-image {
+  width: 100%; max-height: 320px; object-fit: contain;
+  border-radius: 12px; border: 1px solid #1e2a3c; background: #06090e;
+  display: block;
+}
+.xm-image-cap { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
+.xm-image-cap b { color: #e8eef6; font-size: 14px; }
+.xm-image-cap span { color: #7f8ea3; font-size: 12.5px; }
 
 /* progress */
 .xm-progress { display: flex; gap: 4px; margin: 14px 16px 6px; }
@@ -73,7 +75,6 @@
   font-size: 12px; font-weight: 700; white-space: nowrap;
   background: rgba(255, 255, 255, 0.03);
 }
-.xm-finding.sm { font-size: 11px; padding: 3px 10px; }
 .xm-analyzing { display: flex; align-items: center; gap: 8px; color: #8b98ac; font-size: 13px; margin-top: 10px; }
 .xm-spinner {
   width: 14px; height: 14px; border-radius: 50%;
@@ -85,7 +86,7 @@
 .xm-result-text { color: #c6d2e2; font-size: 13.5px; line-height: 1.5; margin: 0 0 6px; }
 .xm-unc { color: #7f8ea3; font-size: 12.5px; line-height: 1.5; margin: 0; }
 
-/* agreement + actions */
+/* agreement */
 .xm-agree {
   margin: 6px 16px 12px; padding: 12px 14px;
   background: #0e1622; border: 1px solid #24344a; border-radius: 12px;
@@ -101,24 +102,7 @@
   border-radius: 12px; padding: 13px; font-size: 14.5px; font-weight: 700;
   cursor: pointer; border: 1px solid transparent;
 }
-.xm-btn.primary { background: #f0a832; color: #14100a; }
-.xm-btn.primary:hover { background: #f5b54e; }
 .xm-btn.ghost { background: transparent; color: #c6d2e2; border-color: #2b3a4f; margin-top: 8px; }
 .xm-btn.ghost:hover { border-color: #3a4d66; }
-.xm-note { color: #7f8ea3; font-size: 12.5px; line-height: 1.5; margin: 10px 16px 0; }
-
-/* recorded state */
-.xm-done { padding: 8px 16px; }
-.xm-done-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.xm-done-dot { width: 10px; height: 10px; border-radius: 50%; background: #34d399; }
-.xm-done-head b { color: #e8eef6; font-size: 14.5px; }
-.xm-done-at { color: #7f8ea3; font-size: 12px; margin-left: auto; }
-.xm-done-row {
-  display: flex; align-items: center; gap: 10px;
-  background: #101823; border: 1px solid #1e2a3c; border-radius: 10px;
-  padding: 10px 12px; margin-bottom: 8px;
-}
-.xm-done-model { color: #c6d2e2; font-size: 13.5px; }
-.xm-done-actions { margin-top: 12px; }
 
 .xm-foot { color: #5f6e84; font-size: 11.5px; text-align: center; margin: 22px 16px 26px; line-height: 1.5; }
