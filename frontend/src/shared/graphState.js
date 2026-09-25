@@ -31,9 +31,47 @@
 //     Returns { ranked, top } where top = { rel, score, reasons }.
 
 import { CASES } from '../graph/graphScenarios';
-import { latestChecks } from './caseStore';
+import { latestChecks, getCrossModelState } from './caseStore';
 
 export const CASE_IDS = Object.keys(CASES);
+
+// Cross-model findings (Page 6, optional lab) become base relationships in
+// the SAME graph, with cross-model provenance. They are deliberately
+// non-material and never "verified": they cannot move an existing edge,
+// cannot become weakest-link candidates (no verificationSpec), and cannot
+// shift the locked Page 5 decision narratives.
+function crossModelRelationships(caseId) {
+  let run = null;
+  try {
+    run = getCrossModelState(caseId).run;
+  } catch {
+    return [];
+  }
+  if (!run || !run.findings) return [];
+  return run.findings.map((f) => ({
+    id: `X6-${f.modelId}`,
+    type: f.finding,
+    supportLevel: f.finding === 'SUPPORT' ? 'weak' : undefined,
+    title: `${f.name} — ${run.evidenceLabel}`,
+    claimA: f.claimA,
+    sourceA: f.sourceA,
+    claimB: f.claimB,
+    sourceB: f.sourceB,
+    check: f.check,
+    method: `${f.method} · cross-model`,
+    result: f.result,
+    confidence: '—',
+    uncertainty: f.uncertainty,
+    why: f.why,
+    evidence: [{ label: f.name, text: f.result }],
+    evidenceNote: 'Recorded by the cross-model lab. Simulated model output (DEMO MODE).',
+    crossModel: { model: f.name, method: f.method, recordedAt: run.at },
+    identityBearing: false,
+    authorityBearing: false,
+    effectiveType: f.finding,
+    verification: null,
+  }));
+}
 
 export function getEffectiveRelationships(caseId) {
   const sc = CASES[caseId];
@@ -49,7 +87,7 @@ export function getEffectiveRelationships(caseId) {
     const id = c.relId || c.linkId;
     if (id) byRel[id] = c;
   });
-  return sc.relationships.map((r) => {
+  const base = sc.relationships.map((r) => {
     const v = byRel[r.id];
     if (!v || !v.edgeAfter) return { ...r, effectiveType: r.type, verification: null };
     return {
@@ -66,6 +104,7 @@ export function getEffectiveRelationships(caseId) {
       },
     };
   });
+  return base.concat(crossModelRelationships(caseId));
 }
 
 export function selectWeakestLink(caseId, excludeIds = []) {

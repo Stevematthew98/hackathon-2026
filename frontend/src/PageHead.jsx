@@ -12,14 +12,14 @@ export default function PageHead({ page, onNav, label }) {
         <span className="g-live-tag"><span className="g-pulse" />live prototype</span>
       </div>
       <div className="g-pages" aria-label="Prototype pages">
-        {[1, 2, 3, 4, 5].map((n) => (
+        {[1, 2, 3, 4, 5, 6].map((n) => (
           <button
             key={n}
-            className={`g-dot${n === page ? ' on' : ''}`}
-            disabled={n > 5}
-            onClick={() => n <= 5 && onNav(n)}
-            title={n === 1 ? 'Page 1 · The Case Builds Itself' : n === 2 ? 'Page 2 · Forward-to-Check' : n === 3 ? 'Page 3 · The Evidence Graph' : n === 4 ? 'Page 4 · The Verification Loop' : 'Page 5 · Decision-Safe Output'}
-            aria-label={n === 1 ? 'Go to page 1' : n === 2 ? 'Go to page 2' : n === 3 ? 'Go to page 3' : n === 4 ? 'Go to page 4' : 'Go to page 5'}
+            className={`g-dot${n === page ? ' on' : ''}${n === 6 ? ' optional' : ''}`}
+            disabled={n > 6}
+            onClick={() => n <= 6 && onNav(n)}
+            title={n === 1 ? 'Page 1 · The Case Builds Itself' : n === 2 ? 'Page 2 · Forward-to-Check' : n === 3 ? 'Page 3 · The Evidence Graph' : n === 4 ? 'Page 4 · The Verification Loop' : n === 5 ? 'Page 5 · Decision-Safe Output' : 'Page 6 · Cross-Model Verification (optional lab)'}
+            aria-label={n === 6 ? 'Go to optional page 6' : `Go to page ${n}`}
           />
         ))}
         <span className="g-page-label">{label}</span>

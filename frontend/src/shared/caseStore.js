@@ -79,3 +79,58 @@ export function resetVerificationState(caseId) {
   cases[caseId] = { verifications: [], openedAt: new Date().toISOString() };
   persist();
 }
+
+// ---- cross-model runs (Page 6, optional lab) -------------------------------
+// One recorded run per case: the latest set of model findings for the
+// featured evidence item. Persisted separately from verification state.
+// A run NEVER moves an existing relationship and NEVER decides anything —
+// readers (graphState) append each finding as a base relationship with
+// cross-model provenance.
+//
+// Run shape:
+//   { evidenceLabel, at, iso,
+//     findings: [{ modelId, name, method, finding: 'SUPPORT'|'CONFLICT'|'UNKNOWN',
+//                   claimA, sourceA, claimB, sourceB, check, result,
+//                   uncertainty, why }] }
+const xcases = {};
+const X_LS_KEY = 'tg-crossmodel-state-v1';
+
+function xpersist() {
+  try {
+    localStorage.setItem(X_LS_KEY, JSON.stringify(xcases));
+  } catch {
+    /* storage unavailable — in-memory state still works for the session */
+  }
+}
+
+(function xhydrate() {
+  try {
+    const raw = localStorage.getItem(X_LS_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    Object.keys(data || {}).forEach((k) => { xcases[k] = data[k]; });
+  } catch {
+    /* corrupt cache — start clean */
+  }
+})();
+
+export function getCrossModelState(caseId) {
+  if (!xcases[caseId]) xcases[caseId] = { run: null };
+  return xcases[caseId];
+}
+
+export function recordCrossModelRun(caseId, run) {
+  const s = getCrossModelState(caseId);
+  s.run = {
+    ...run,
+    at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    iso: new Date().toISOString(),
+  };
+  xpersist();
+  return s;
+}
+
+export function clearCrossModelState(caseId) {
+  xcases[caseId] = { run: null };
+  xpersist();
+}

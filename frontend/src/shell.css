@@ -47,6 +47,8 @@
   border: 0; padding: 0; cursor: pointer;
 }
 .g-dot.on { background: #f59e0b; box-shadow: 0 0 10px rgba(245,158,11,.8); cursor: default; }
+.g-dot.optional { border: 1px dashed #5f6e84; background: transparent; width: 10px; height: 10px; }
+.g-dot.optional.on { background: #8fa0b8; border-style: solid; box-shadow: 0 0 10px rgba(143,160,184,.6); }
 .g-dot:disabled { cursor: default; opacity: .8; }
 button.g-dot:not(:disabled):hover { background: #4a5568; }
 .g-page-label { font-size: 11.5px; color: #8b95a5; margin-left: 6px; white-space: nowrap; }
