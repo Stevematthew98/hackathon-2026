@@ -9,7 +9,7 @@
 
 import { useMemo, useState } from 'react';
 import PageHead from '../PageHead';
-import { VERIFY_CASES } from '../verify/verifyScenarios';
+import { CASES } from '../graph/graphScenarios';
 import { buildDecision, DECISION_IDS, VERDICTS } from './decisionEngine';
 import { resetVerificationState } from '../shared/caseStore';
 import { downloadReport } from './reportExport';
@@ -44,64 +44,41 @@ function Expander({ id, openId, setOpenId, title, right, children, defaultOpen }
 
 function ReasonCard({ reason, onViewGraph, caseId }) {
   const [open, setOpen] = useState(false);
-  if (reason.kind === 'rel') {
-    const r = reason.rel;
-    return (
-      <div className="do-reason">
-        <button className="do-reason-head" onClick={() => setOpen((v) => !v)}>
-          <Badge type={r.type} />
-          <span className="do-reason-title">{r.title}</span>
-          <span className="do-exp-go">{open ? '▾' : '▸'}</span>
-        </button>
-        {open && (
-          <div className="do-reason-body">
-            <div className="do-kv"><span>Claim A</span><p>“{r.claimA}” · {r.sourceA}</p></div>
-            <div className="do-kv"><span>Claim B</span><p>“{r.claimB}” · {r.sourceB}</p></div>
-            <div className="do-kv"><span>Relationship</span><p><Badge type={r.type} /> {r.id}</p></div>
-            <div className="do-kv"><span>Why it matters</span><p>{r.why}</p></div>
-            <div className="do-kv"><span>Method / check</span><p>{r.check} · {r.method}</p></div>
-            <div className="do-kv"><span>Confidence / uncertainty</span><p>{r.confidence !== '—' ? `${r.confidence} confidence. ` : ''}{r.uncertainty}</p></div>
-            <div className="do-kv"><span>Provenance</span><p>{(r.evidence || []).map((e) => e.label).join(' · ') || r.sourceA}</p></div>
-            <button className="do-linkbtn" onClick={() => onViewGraph(caseId, r.id)}>
-              View in Evidence Graph →
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
-  const s = reason.standing;
-  const c = s.check;
+  // kind 'verified': an Idea 3 relationship moved by an Idea 4 independent
+  // check. kind 'rel': a relationship read straight from the Idea 3 graph.
+  const r = reason.rel;
+  const v = reason.kind === 'verified' ? reason.record : null;
+  const type = r.effectiveType || r.type;
   return (
     <div className="do-reason">
-      <button className="do-reason-head" onClick={() => setOpen((v) => !v)}>
-        <Badge type={s.type} />
-        <span className="do-reason-title">{s.title}</span>
+      <button className="do-reason-head" onClick={() => setOpen((s) => !s)}>
+        <Badge type={type} />
+        <span className="do-reason-title">{v ? `Independent check — ${r.title}` : r.title}</span>
         <span className="do-exp-go">{open ? '▾' : '▸'}</span>
       </button>
       {open && (
         <div className="do-reason-body">
-          <div className="do-kv"><span>Claim A</span><p>{s.stake.claimA}</p></div>
-          <div className="do-kv"><span>Claim B</span><p>{s.stake.claimB}</p></div>
-          <div className="do-kv"><span>Relationship</span><p><Badge type={s.type} /> {c ? 'settled by independent check' : 'not yet independently checked'}</p></div>
-          {c ? (
+          <div className="do-kv"><span>Claim A</span><p>“{r.claimA}” · {r.sourceA}</p></div>
+          <div className="do-kv"><span>Claim B</span><p>“{r.claimB}” · {r.sourceB}</p></div>
+          <div className="do-kv"><span>Relationship</span><p><Badge type={type} /> {r.id}{v ? ' · settled by independent check' : ''}</p></div>
+          {v ? (
             <>
-              <div className="do-kv"><span>Why it matters</span><p>{c.verdict === 'HIGH RISK' ? 'An independent source contradicts the claim this case’s authority rests on.' : 'An independent source confirms the load-bearing claim.'}</p></div>
-              <div className="do-kv"><span>Method / check</span><p>Independent source check · {c.sourceType}</p></div>
-              <div className="do-kv"><span>Result</span><p>{c.resultText}</p></div>
-              <div className="do-kv"><span>Provenance</span><p>{c.sourceType} · {c.at}</p></div>
+              <div className="do-kv"><span>Why it matters</span><p>{v.newStatus === 'CONFLICT' ? 'An independent source contradicts the claim this case’s authority rests on.' : 'An independent source confirms the load-bearing claim.'}</p></div>
+              <div className="do-kv"><span>Method / check</span><p>{v.method} · {v.source}</p></div>
+              <div className="do-kv"><span>Result</span><p>{v.result}</p></div>
+              <div className="do-kv"><span>Graph change</span><p><Badge type={v.previousStatus} /> → <Badge type={v.newStatus} /></p></div>
             </>
           ) : (
             <>
-              <div className="do-kv"><span>Why it matters</span><p>This is the case’s weakest link: the claim the case can least afford to leave unverified. Until it is checked through an independent source, the case cannot be settled.</p></div>
-              <div className="do-kv"><span>Still unknown</span><p>{(s.evidenceMissing || []).join('; ')}</p></div>
+              <div className="do-kv"><span>Why it matters</span><p>{r.why}</p></div>
+              <div className="do-kv"><span>Method / check</span><p>{r.check} · {r.method}</p></div>
+              <div className="do-kv"><span>Confidence / uncertainty</span><p>{r.confidence !== '—' ? `${r.confidence} confidence. ` : ''}{r.uncertainty}</p></div>
+              <div className="do-kv"><span>Provenance</span><p>{(r.evidence || []).map((e) => e.label).join(' · ') || r.sourceA}</p></div>
             </>
           )}
-          {s.graphRelId && (
-            <button className="do-linkbtn" onClick={() => onViewGraph(caseId, s.graphRelId)}>
-              View in Evidence Graph →
-            </button>
-          )}
+          <button className="do-linkbtn" onClick={() => onViewGraph(caseId, r.id)}>
+            View in Evidence Graph →
+          </button>
         </div>
       )}
     </div>
@@ -163,7 +140,7 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
                 className={`do-casebtn${id === caseId ? ' on' : ''}`}
                 onClick={() => switchCase(id)}
               >
-                {VERIFY_CASES[id].tabLabel}
+                {CASES[id].tabLabel}
               </button>
             ))}
           </div>
@@ -235,7 +212,7 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
           <div className="do-sec-label">Verification loop</div>
           {d.verdict === 'NEEDS REVIEW' ? (
             <>
-              <p className="do-note">Not settled yet. The weakest link: “{d.weakestLink.question}”</p>
+              <p className="do-note">Not settled yet.{d.weakestLink ? <> The weakest link: “{d.weakestLink.verificationSpec.question}”</> : ' No further independent check is available for the remaining unknowns.'}</p>
               <button className="do-btn primary" onClick={() => onContinueVerify(caseId)}>
                 Continue verification →
               </button>
@@ -271,7 +248,7 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
                   {c.edgeAfter && (
                     <div className="do-kv"><span>Graph change</span><p><Badge type="UNKNOWN" /> → <Badge type={c.edgeAfter} /></p></div>
                   )}
-                  <div className="do-kv"><span>Effect on decision</span><p>{c.verdict ? `Case now reads ${c.verdict}.` : 'No conclusion forced.'}</p></div>
+                  <div className="do-kv"><span>Effect on decision</span><p>{c.edgeAfter ? `Graph changed: ${(c.previousStatus || 'UNKNOWN')} → ${c.edgeAfter}. The decision above reflects this.` : 'No conclusion forced.'}</p></div>
                   <div className="do-kv"><span>Timestamp</span><p>{c.at}</p></div>
                 </div>
               </Expander>

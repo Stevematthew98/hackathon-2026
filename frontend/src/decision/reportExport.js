@@ -5,7 +5,7 @@
 // nothing is uploaded anywhere.
 
 export function buildReport(decision) {
-  const { graphCase: g, verifyCase: v } = decision;
+  const { graphCase: g } = decision;
   const now = new Date();
   const when = now.toLocaleString([], {
     year: 'numeric', month: 'short', day: 'numeric',
@@ -14,14 +14,14 @@ export function buildReport(decision) {
   const L = [];
   const h = (t, lvl = 2) => L.push(`${'#'.repeat(lvl)} ${t}`, '');
   const kv = (k, val) => L.push(`- **${k}:** ${val}`);
-  const relsOf = (t) => decision.baseRels.filter((r) => r.type === t);
+  const relsOf = (t) => decision.baseRels.filter((r) => (r.effectiveType || r.type) === t);
 
   L.push('# TRUSTGUARD — STRUCTURED CASE REPORT', '');
   L.push('*Evidence & Assessment Report — AI-assisted, not an official determination.*', '');
   kv('Case ID', decision.caseLabel);
   kv('Case type', decision.caseType);
   kv('Report generated', when);
-  kv('Source', v.caseType);
+  kv('Source', g.caseType);
   L.push('');
 
   h('Final assessment');
@@ -76,11 +76,12 @@ export function buildReport(decision) {
 
   h('Why this decision');
   decision.reasons.forEach((r, i) => {
-    if (r.kind === 'rel') {
-      L.push(`${i + 1}. **${r.rel.id} — ${r.rel.title}** [${r.rel.type}]: ${r.rel.why}`);
+    if (r.kind === 'verified') {
+      const v = r.record;
+      L.push(`${i + 1}. **Independent check — ${r.rel.title}** [${v.previousStatus} → ${v.newStatus}]: ${v.result}`);
     } else {
-      const s = r.standing;
-      L.push(`${i + 1}. **Independent check — ${s.title}** [${s.type}]: ${s.check ? s.check.resultText : 'Not yet performed.'}`);
+      const rel = r.rel;
+      L.push(`${i + 1}. **${rel.id} — ${rel.title}** [${rel.effectiveType || rel.type}]: ${rel.why}`);
     }
   });
   L.push('');

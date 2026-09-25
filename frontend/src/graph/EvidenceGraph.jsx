@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import PageHead from '../PageHead';
 import { CASES, REL_META, NODE_KIND, REL_CHIPS } from './graphScenarios';
 import CheckWorkbench from './CheckWorkbench';
-import { latestChecks } from '../shared/caseStore';
+import { getEffectiveRelationships, selectWeakestLink } from '../shared/graphState';
 import './EvidenceGraph.css';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -84,7 +84,7 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
     { key: 'interp', part: 1, title: 'The weakest link decides what’s next', body: 'Unresolved evidence points at the next check — that is where the Verification Loop begins.', act: 'seam' },
   ];
 
-  const relById = (id) => sc.relationships.find((r) => r.id === id);
+  const relById = (id) => effRels.find((r) => r.id === id);
   const nodeById = (id) => { const n = sc.nodes.find((x) => x.id === id); const p = nodePos[id]; return p ? { ...n, x: p.x, y: p.y } : n; };
   const homeOf = (id) => { const n = sc.nodes.find((x) => x.id === id); return { x: n.x, y: n.y }; };
   const moved = (id) => { const h = homeOf(id), p = nodePos[id]; return !!p && (p.x !== h.x || p.y !== h.y); };
@@ -111,7 +111,7 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
     const hl = highlightRef.current;
     if (hl && hl.caseId === caseId) {
       highlightRef.current = null;
-      const rel = sc.relationships.find((r) => r.id === hl.relId);
+      const rel = effRels.find((r) => r.id === hl.relId);
       setShownClaims(sc.claims.length);
       setExtracting(false);
       if (rel) setDrawer({ kind: 'rel', data: rel });
@@ -132,18 +132,13 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
       .catch(() => setBackendCount(-1)); // -1 = unreachable; never stuck on "checking"
   }, []);
 
-  const unknownRels = useMemo(() => sc.relationships.filter((r) => r.type === 'UNKNOWN'), [sc]);
-  const weakest = unknownRels[0] || sc.relationships.find((r) => r.type === 'ANOMALY') || null;
-
-  // ---- verification reflection (#16): if Idea 4 moved a relationship,
-  // Page 3 shows the verified transition instead of the stale base state.
-  const verifiedMap = useMemo(() => {
-    const m = {};
-    try {
-      latestChecks(caseId).forEach((v) => { if (v.relId && v.edgeAfter) m[v.relId] = v; });
-    } catch { /* store unavailable — graph shows base state */ }
-    return m;
-  }, [caseId]);
+  // ---- effective graph state: Idea 3 relationships with Idea 4 verification
+  // results folded into the SAME graph (shared/graphState — the single read
+  // layer). Computed on every render so returning from the Verification Loop
+  // always shows the current relationship states.
+  const effRels = getEffectiveRelationships(caseId);
+  const unknownRels = effRels.filter((r) => r.effectiveType === 'UNKNOWN');
+  const weakest = selectWeakestLink(caseId).top?.rel || null;
 
   // ---- guided tour (routes across both parts) ----
   useEffect(() => {
@@ -180,10 +175,11 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
   const relEdges = useMemo(() => sc.edges.filter((e) => !e.neutral), [sc]);
   const replayLog = useMemo(() => {
     const lines = [`claim extraction complete · ${sc.claims.length} structured claims`];
-    sc.relationships.forEach((r) => lines.push(`${r.id} · ${r.check} → ${r.type}${r.supportLevel === 'weak' ? ' (weak)' : ''}`));
-    lines.push(`replay complete · ${sc.relationships.length} relationships · 0 scores computed`);
+    effRels.forEach((r) => lines.push(`${r.id} · ${r.check} → ${r.effectiveType}${r.supportLevel === 'weak' ? ' (weak)' : ''}`));
+    lines.push(`replay complete · ${effRels.length} relationships · 0 scores computed`);
     return lines;
-  }, [sc]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sc, caseId]);
 
   useEffect(() => {
     if (!replay || !replay.playing) return;
@@ -227,13 +223,13 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
     return `${sc.claims.length} structured claims · ${sc.relationships.length} deterministic checks · ${types} edge types · 0 scores computed`;
   }, [sc]);
 
-  const openRel = (rel) => { setDrawer({ kind: 'rel', data: rel }); setWhyOpen(false); setEvOpen(false); };
+  const openRel = (rel) => { const eff = effRels.find((r) => r.id === rel.id) || rel; setDrawer({ kind: 'rel', data: eff }); setWhyOpen(false); setEvOpen(false); };
 
   const edgeStyleFor = (e) => {
     if (e.neutral) return filter === 'ALL' ? {} : { opacity: 0.08 };
     if (replay && !edgeVisibleInReplay(e)) return { opacity: 0.06 };
     const rel = relById(e.id);
-    const active = filter === 'ALL' || filter === rel.type;
+    const active = filter === 'ALL' || filter === rel.effectiveType;
     return { opacity: active ? 1 : 0.1 };
   };
 
@@ -243,11 +239,11 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
     sc.edges.forEach((e) => {
       if (e.neutral) return;
       const rel = relById(e.id);
-      if (rel && rel.type === filter) { s.add(e.from); s.add(e.to); }
+      if (rel && rel.effectiveType === filter) { s.add(e.from); s.add(e.to); }
     });
     return s;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, sc]);
+  }, [filter, sc, caseId]);
 
   const edgeGeom = (e) => {
     const a = nodeById(e.from), b = nodeById(e.to);
@@ -258,7 +254,7 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
 
   const countsLine = useMemo(() => {
     const c = { CONFLICT: 0, ANOMALY: 0, UNKNOWN: 0, SUPPORT: 0, weak: 0 };
-    sc.relationships.forEach((r) => { c[r.type] += 1; if (r.supportLevel === 'weak') c.weak += 1; });
+    effRels.forEach((r) => { c[r.effectiveType] += 1; if (r.supportLevel === 'weak') c.weak += 1; });
     const parts = [];
     if (c.CONFLICT) parts.push(`${c.CONFLICT} CONFLICT`);
     if (c.ANOMALY) parts.push(`${c.ANOMALY} ${c.ANOMALY > 1 ? 'ANOMALIES' : 'ANOMALY'}`);
@@ -267,7 +263,8 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
     if (strong) parts.push(`${strong} STRONG SUPPORT`);
     if (c.weak) parts.push(`${c.weak} WEAK SUPPORT`);
     return parts.join(' · ');
-  }, [sc]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sc, caseId]);
 
   const isLegit = caseId === 'legit-bank';
 
@@ -357,16 +354,16 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
                 <div className="eg-card-head">Evidence relationships</div>
                 <p className="eg-list-sub">The list is the investigation. The graph in Part 2 supports it.</p>
                 <div className="eg-rels">
-                  {sc.relationships.map((r) => (
+                  {effRels.map((r) => (
                     <button key={r.id} className={`eg-rel${flashRels.includes(r.id) ? ' eg-flash' : ''}`} onClick={() => openRel(r)}>
-                      <span className="eg-rel-dot" style={{ background: REL_META[r.type].color }} />
+                      <span className="eg-rel-dot" style={{ background: REL_META[r.effectiveType].color }} />
                       <span className="eg-rel-main">
                         <span className="eg-rel-title">{r.title}</span>
                         <span className="eg-rel-id">{r.id} · {r.check}</span>
                       </span>
-                      <TypeBadge type={r.type} weak={r.supportLevel === 'weak'} />
-                      {verifiedMap[r.id]?.edgeAfter && (
-                        <span className="eg-verified-tag" title="Moved by an independent verification check">Verified → {verifiedMap[r.id].edgeAfter}</span>
+                      <TypeBadge type={r.effectiveType} weak={r.supportLevel === 'weak'} />
+                      {r.verification && (
+                        <span className="eg-verified-tag" title="Moved by an independent verification check">Independent check → {r.verification.newStatus}</span>
                       )}
                       <span className="eg-rel-go">›</span>
                     </button>
@@ -379,9 +376,9 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
                 <div className="eg-card-head">Evidence is not averaged</div>
                 <p className="eg-note">TrustGuard does not blend findings into one score. Every relationship stays individually inspectable.</p>
                 <div className="eg-avg-row">
-                  {sc.relationships.map((r) => (
-                    <span key={r.id} className="eg-avg-chip" style={{ '--rc': REL_META[r.type].color }}>
-                      {r.id} · {r.type}{r.supportLevel === 'weak' ? ' (weak)' : ''} → remains visible
+                  {effRels.map((r) => (
+                    <span key={r.id} className="eg-avg-chip" style={{ '--rc': REL_META[r.effectiveType].color }}>
+                      {r.id} · {r.effectiveType}{r.supportLevel === 'weak' ? ' (weak)' : ''} → remains visible
                     </span>
                   ))}
                 </div>
@@ -418,17 +415,17 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
                       <>
                         <div className="eg-seam-head">Weakest link</div>
                         <button className="eg-rel" onClick={() => openRel(weakest)}>
-                          <span className="eg-rel-dot" style={{ background: REL_META[weakest.type].color }} />
+                          <span className="eg-rel-dot" style={{ background: REL_META[weakest.effectiveType].color }} />
                           <span className="eg-rel-main">
                             <span className="eg-rel-title">{weakest.title}</span>
                             <span className="eg-rel-id">{weakest.id} · needs independent evidence first</span>
                           </span>
-                          <TypeBadge type={weakest.type} weak={weakest.supportLevel === 'weak'} />
+                          <TypeBadge type={weakest.effectiveType} weak={weakest.supportLevel === 'weak'} />
                           <span className="eg-rel-go">›</span>
                         </button>
                       </>
                     ) : (
-                      <p className="eg-note">No weak link — every checked relationship resolved against available evidence.</p>
+                      <p className="eg-note">No checkable weak link — every independently verifiable claim has been checked.</p>
                     )}
                     <button className="eg-btn" onClick={() => setSeam('next')}>Find the weakest link</button>
                   </div>
@@ -486,7 +483,7 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
                   {sc.edges.map((e, i) => {
                     const g = edgeGeom(e);
                     const rel = e.neutral ? null : relById(e.id);
-                    const col = rel ? REL_META[rel.type].color : '#3a4553';
+                    const col = rel ? REL_META[rel.effectiveType].color : '#3a4553';
                     const weak = rel && rel.supportLevel === 'weak';
                     const st = edgeStyleFor(e);
                     const mid = { x: g.mx, y: g.my };
@@ -615,14 +612,18 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
                     <>
                       <div className="eg-card-head">Relationship details</div>
                       <div className="eg-rel-type-row">
-                        <TypeBadge type={drawer.data.type} weak={drawer.data.supportLevel === 'weak'} />
+                        <TypeBadge type={drawer.data.effectiveType || drawer.data.type} weak={drawer.data.supportLevel === 'weak'} />
                         <span className="eg-rel-id">{drawer.data.id} · {drawer.data.title}</span>
                       </div>
-                      {verifiedMap[drawer.data.id]?.edgeAfter && (
+                      {drawer.data.verification && (
                         <div className="eg-verified-banner">
-                          Verified update — this relationship moved:{' '}
-                          <b>{verifiedMap[drawer.data.id].effect?.from || 'UNKNOWN'} → {verifiedMap[drawer.data.id].edgeAfter}</b>.
-                          Recorded by an independent check in the Verification Loop; the decision layer reads this state.
+                          Originally {drawer.data.verification.previousStatus}. Independent verification produced a{' '}
+                          {drawer.data.verification.newStatus === 'CONFLICT' ? 'conflicting' : drawer.data.verification.newStatus === 'SUPPORT' ? 'supporting' : 'inconclusive'}{' '}
+                          result.
+                          <div className="eg-verify-prov">
+                            Source: {drawer.data.verification.source} · Method: {drawer.data.verification.method}
+                            {drawer.data.verification.timestamp ? ` · ${drawer.data.verification.timestamp}` : ''}
+                          </div>
                         </div>
                       )}
                       {drawer.data.supportLevel === 'weak' && (

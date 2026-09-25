@@ -1,187 +1,114 @@
-import { useMemo, useRef, useState } from 'react';
+// Idea 4 · The Verification Loop — verification LAYER over Idea 3.
+//
+// It does NOT own evidence. It reads the Idea 3 Evidence Graph through
+// shared/graphState, TrustGuard identifies the single weakest link
+// deterministically (never a manual pick), proposes exactly ONE independent
+// check, and folds the result back into the SAME graph — never a copy.
+//
+// Job: IDENTIFY → VERIFY → UPDATE GRAPH. It does not decide the case:
+// no verdict is produced here; the decision is recalculated from the
+// complete evidence state on Page 5.
+
+import { useMemo, useState } from 'react';
 import PageHead from '../PageHead';
-import { VERIFY_CASES, VERIFY_IDS, outcomeVerdict } from './verifyScenarios';
-import { recordVerification, resetVerificationState } from '../shared/caseStore';
+import { CASES } from '../graph/graphScenarios';
+import { CASE_IDS, selectWeakestLink } from '../shared/graphState';
+import { recordVerification, getVerificationState, resetVerificationState } from '../shared/caseStore';
 import VerifyChain from './VerifyChain';
 import './VerificationLoop.css';
 
-const VC = {
-  HIGH_RISK: '#f87171',
-  'NEEDS REVIEW': '#f0a832',
-  'LOW RISK': '#34d399',
-  UNRESOLVED: '#8fa0b8',
-};
 const EC = { UNKNOWN: '#8fa0b8', CONFLICT: '#f87171', SUPPORT: '#34d399' };
+const EDGE_AFTER = { confirmed: 'SUPPORT', denied: 'CONFLICT', inconclusive: 'UNKNOWN' };
+const OUTCOME_ORDER = ['denied', 'confirmed', 'inconclusive'];
 
 export default function VerificationLoop({ page, onNav, initialCase = 'digital-arrest', onBack }) {
   const [caseId, setCaseId] = useState(initialCase);
-  const [part, setPart] = useState(1);
-  const scase = VERIFY_CASES[caseId];
-
-  // part 1 state
-  const [pickedId, setPickedId] = useState(null);
-  const [candOpen, setCandOpen] = useState(null); // candidate being inspected
-  const [quizPick, setQuizPick] = useState(null); // index
-  const [quizDone, setQuizDone] = useState(false);
-  const [whyOpen, setWhyOpen] = useState(null);
-
-  // part 2 state
-  const [phase, setPhase] = useState('prep'); // prep | ask | received | folded | done | stopped
-  const [outcomeKey, setOutcomeKey] = useState(null);
-  const [outcome, setOutcome] = useState(null);
-  const [prevVerdict, setPrevVerdict] = useState(null);
-  const [, setFlipKey] = useState(0);
-  const [history, setHistory] = useState([]);
-  const [showProv, setShowProv] = useState(false);
+  const [tick, setTick] = useState(0);
+  const [phase, setPhase] = useState('identify'); // identify | run | updated | stopped
+  const [skipped, setSkipped] = useState([]); // relIds tried-but-inconclusive this session
+  const [lastEffect, setLastEffect] = useState(null); // { from, to }
   const [showHist, setShowHist] = useState(false);
-  const timers = useRef([]);
+  const [showProv, setShowProv] = useState(false);
 
-  const link = useMemo(
-    () => scase.links.find((l) => l.id === pickedId) || scase.links[0],
-    [scase, pickedId]
-  );
-  const edgeState = useMemo(() => {
-    if (outcome && (phase === 'folded' || phase === 'done')) return outcome.edgeAfter;
-    return 'UNKNOWN';
-  }, [outcome, phase]);
-  const verdictNow = useMemo(() => {
-    if (phase === 'stopped') return 'UNRESOLVED';
-    if (outcome && (phase === 'folded' || phase === 'done' || phase === 'received')) return outcomeVerdict(outcome);
-    return scase.initialVerdict;
-  }, [outcome, phase, scase]);
-
-  const later = (fn, ms) => {
-    const t = setTimeout(fn, ms);
-    timers.current.push(t);
-  };
+  const scase = CASES[caseId];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const sel = useMemo(() => selectWeakestLink(caseId, skipped), [caseId, tick, skipped]);
+  const rel = sel.top ? sel.top.rel : null;
+  const spec = rel ? rel.verificationSpec : null;
+  const reasons = sel.top ? sel.top.reasons : [];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const history = useMemo(() => {
+    try {
+      return getVerificationState(caseId).verifications;
+    } catch {
+      return [];
+    }
+  }, [caseId, tick]); // tick refreshes after each recorded check
 
   const resetAll = (nextCase) => {
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
     resetVerificationState(nextCase);
     setCaseId(nextCase);
-    setPart(1);
-    setPickedId(null);
-    setCandOpen(null);
-    setQuizPick(null);
-    setQuizDone(false);
-    setWhyOpen(null);
-    setPhase('prep');
-    setOutcomeKey(null);
-    setOutcome(null);
-    setPrevVerdict(null);
-    setHistory([]);
-    setShowProv(false);
+    setPhase('identify');
+    setSkipped([]);
+    setLastEffect(null);
     setShowHist(false);
-  };
-
-  const pickCandidate = (id) => {
-    setPickedId(id);
-    setQuizPick(null);
-    setQuizDone(false);
-    setWhyOpen(null);
-  };
-
-  const answerQuiz = (idx) => {
-    setQuizPick(idx);
-    if (scase.quiz.options[idx].correct) {
-      later(() => setQuizDone(true), 650);
-    }
+    setShowProv(false);
   };
 
   const chooseOutcome = (key) => {
-    const o = link.outcomes[key];
-    setPrevVerdict(verdictNow === 'UNRESOLVED' ? scase.initialVerdict : verdictNow);
-    setOutcomeKey(key);
-    setOutcome(o);
-    setPhase('received');
-    const at = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setHistory((h) => [
-      ...h,
-      {
-        what: link.historyWhat,
-        why: link.historyWhy,
-        effect: { from: 'UNKNOWN', to: o.edgeAfter },
-        verdict: { from: scase.initialVerdict, to: outcomeVerdict(o) },
-        result: o.resultText,
-        state: key === 'inconclusive' ? 'Inconclusive' : 'Completed',
-        at,
-        caseId: scase.caseId,
-      },
-    ]);
-    // shared with Idea 5 (Decision-Safe Output)
-    recordVerification(scase.id, {
-      linkId: link.id,
-      relId: link.graphRelId,
-      question: link.question,
-      what: link.historyWhat,
-      why: link.historyWhy,
+    const o = spec.outcomes[key];
+    const edgeAfter = EDGE_AFTER[key];
+    recordVerification(caseId, {
+      relId: rel.id,
+      question: spec.question,
+      what: rel.title,
+      why: spec.whyMatters,
       sourceType: o.sourceType,
       method: 'Independent source check',
       resultText: o.resultText,
-      edgeAfter: o.edgeAfter,
+      previousStatus: 'UNKNOWN',
+      edgeAfter,
       outcomeKey: key,
-      verdict: outcomeVerdict(o),
       nextAction: o.nextAction,
       state: key === 'inconclusive' ? 'Inconclusive' : 'Completed',
+      verifiedIndependently: true,
     });
-    later(() => setShowHist(true), 400);
+    if (key === 'inconclusive') setSkipped((s) => [...s, rel.id]);
+    setLastEffect({ from: 'UNKNOWN', to: edgeAfter });
+    setPhase('updated');
+    setTick((t) => t + 1);
   };
 
   const stop = () => {
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
-    const at = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setHistory((h) => [
-      ...h,
-      { what: link.historyWhat, why: link.historyWhy, effect: null, verdict: null, result: 'Verification stopped by the user before any result.', state: 'Stopped', at, caseId: scase.caseId },
-    ]);
-    recordVerification(scase.id, {
-      linkId: link.id,
-      relId: link.graphRelId,
-      question: link.question,
-      what: link.historyWhat,
-      why: link.historyWhy,
+    recordVerification(caseId, {
+      relId: rel.id,
+      question: spec.question,
+      what: rel.title,
+      why: spec.whyMatters,
       sourceType: null,
       method: 'Independent source check',
       resultText: 'Verification stopped by the user before any result.',
+      previousStatus: 'UNKNOWN',
       edgeAfter: null,
       outcomeKey: 'stopped',
-      verdict: null,
       nextAction: null,
       state: 'Stopped',
+      verifiedIndependently: false,
     });
     setPhase('stopped');
+    setTick((t) => t + 1);
   };
-
-  const tryAnother = () => {
-    const next = scase.links.find((l) => l.id !== link.id);
-    if (!next) return;
-    setPickedId(next.id);
-    setOutcomeKey(null);
-    setOutcome(null);
-    setPrevVerdict(null);
-    setFlipKey((k) => k + 1);
-    setShowProv(false);
-    setPhase('prep');
-  };
-
-  const goPart2 = () => setPart(2);
 
   const steps = [
-    { label: 'Evidence analyzed', state: 'done' },
-    { label: 'Weakest link picked', state: pickedId ? 'done' : part === 1 ? 'now' : '' },
-    { label: 'Check running', state: phase === 'prep' || phase === 'ask' ? 'now' : outcome ? 'done' : '' },
-    { label: 'Result folded in', state: phase === 'done' ? 'done' : phase === 'folded' || phase === 'received' ? 'now' : '' },
+    { label: 'Weakest link identified', state: rel || phase === 'updated' ? 'done' : 'now' },
+    { label: 'Check running', state: phase === 'run' ? 'now' : phase === 'updated' ? 'done' : '' },
+    { label: 'Graph updated', state: phase === 'updated' ? 'done' : '' },
   ];
-
-  const quiz = scase.quiz;
-  const inspected = scase.links.find((l) => l.id === candOpen);
-  const part2Locked = !quizDone && phase !== 'done';
 
   return (
     <div className="vl-screen app-screen">
-      <PageHead page={page} onNav={onNav} kicker="LIVE PROTOTYPE" title={`Page 4 of 5 · ${scase.pageTitle}`} />
+      <PageHead page={page} onNav={onNav} kicker="LIVE PROTOTYPE" title="Page 4 of 5 · The Verification Loop" />
       <div className="app-body">
         <div className="vl-head">
           <div className="vl-eyebrow">Idea 4 · The Verification Loop</div>
@@ -189,13 +116,7 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
           <div className="vl-sub">
             {scase.caseId} · {scase.caseType}
           </div>
-          <p className="vl-whyline">{scase.whyHere}</p>
-          <div className="vl-statusrow">
-            <span className="vl-status-label">Case status</span>
-            <span className="vl-verdict" style={{ color: VC[verdictNow], borderColor: VC[verdictNow] }}>
-              {verdictNow}
-            </span>
-          </div>
+          <p className="vl-whyline">Reads the Idea 3 Evidence Graph. Writes the result back into it.</p>
           <div className="vl-progress">
             {steps.map((s, i) => (
               <div key={i} className={`vl-step ${s.state}`}>
@@ -204,346 +125,201 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
               </div>
             ))}
           </div>
-          <div className="vl-pager">
-            <button className={`vl-partbtn${part === 1 ? ' on' : ''}`} onClick={() => setPart(1)}>
-              <span className="vl-partnum">1</span> The weak link
-            </button>
-            <button
-              className={`vl-partbtn${part === 2 ? ' on' : ''}`}
-              disabled={part2Locked && part !== 2}
-              onClick={() => !part2Locked && setPart(2)}
-              title={part2Locked ? 'Pick a link and pass the independence test first' : 'Run the check'}
-            >
-              <span className="vl-partnum">2</span> Run the check
-            </button>
-          </div>
           <div className="vl-caseswitch">
-            {VERIFY_IDS.map((id) => (
+            {CASE_IDS.map((id) => (
               <button
                 key={id}
                 className={`vl-casebtn${id === caseId ? ' on' : ''}`}
                 onClick={() => id !== caseId && resetAll(id)}
               >
-                {VERIFY_CASES[id].tabLabel}
+                {CASES[id].tabLabel}
               </button>
             ))}
           </div>
         </div>
 
-        {part === 1 && (
+        {phase === 'identify' && rel && (
           <>
             <div className="vl-card">
-              <div className="vl-card-head">Nothing is verified yet</div>
-              <VerifyChain chain={link.chain} edgeType="UNKNOWN" compact />
-              <p className="vl-note" style={{ marginBottom: 0 }}>
-                One claim must be checked through a source the caller can’t control.
-              </p>
+              <div className="vl-card-head">Weakest link — identified by TrustGuard</div>
+              <VerifyChain chain={spec.chain} edgeType="UNKNOWN" compact />
+              <p className="vl-question">“{spec.question}”</p>
+              <div className="vl-panel">
+                <div className="vl-panel-head">Why this claim matters</div>
+                <p className="vl-note">{spec.whyMatters}</p>
+                <div className="vl-panel-head">Why it is the weakest link</div>
+                <ul className="vl-list">
+                  {reasons.map((r) => (
+                    <li key={r}>TrustGuard picked this claim because {r}.</li>
+                  ))}
+                </ul>
+              </div>
             </div>
 
             <div className="vl-card">
-              <div className="vl-card-head">Find the weakest link</div>
-              <p className="vl-note">The graph holds several claims. Tap the one you think is the weakest — the claim the case can least afford to leave unverified.</p>
-              <div className="vl-cands">
-                {scase.links.map((l) => (
-                  <button
-                    key={l.id}
-                    className={`vl-cand${candOpen === l.id ? ' open' : ''}${pickedId === l.id ? ' picked' : ''}`}
-                    onClick={() => setCandOpen(candOpen === l.id ? null : l.id)}
-                  >
-                    <span className="vl-cand-q">“{l.question}”</span>
-                    <span className="vl-cand-go">{candOpen === l.id ? '▾' : '▸'}</span>
-                  </button>
-                ))}
+              <div className="vl-card-head">From the Evidence Graph · {rel.id}</div>
+              <div className="vl-resline">
+                <span>Claim A</span>
+                <b>“{rel.claimA}” · {rel.sourceA}</b>
               </div>
-              {inspected && (
-                <div className="vl-panel">
-                  <p className="vl-note">{inspected.whyWeakest}</p>
-                  <div className="vl-panel-head">This claim affects</div>
-                  <div className="vl-chips">
-                    {inspected.affects.map((a) => (
-                      <span key={a} className="vl-chip">{a}</span>
-                    ))}
-                  </div>
-                  {pickedId === inspected.id ? (
-                    <div className="vl-panel">
-                      <p className="vl-note" style={{ margin: 0 }}>✓ Weakest link selected — continue below.</p>
+              <div className="vl-resline">
+                <span>Claim B</span>
+                <b>“{rel.claimB}” · {rel.sourceB}</b>
+              </div>
+              <div className="vl-resline">
+                <span>Relationship</span>
+                <b>
+                  <span className="vl-typebadge" style={{ background: EC.UNKNOWN }}>UNKNOWN</span>
+                  {' '}{rel.title}
+                </b>
+              </div>
+              <div className="vl-resline">
+                <span>Provenance</span>
+                <b>{rel.check} · {rel.method}</b>
+              </div>
+              <p className="vl-note"><b>Why unresolved:</b> {spec.unresolvedNote}</p>
+              <button className="vl-linkbtn" onClick={() => (onBack ? onBack() : onNav(3))}>
+                View in Evidence Graph →
+              </button>
+            </div>
+
+            <button className="vl-btn primary" onClick={() => setPhase('run')}>
+              Run the check →
+            </button>
+          </>
+        )}
+
+        {phase === 'identify' && !rel && (
+          <div className="vl-card">
+            <div className="vl-card-head">No unresolved checkable claims</div>
+            <p className="vl-note">
+              Every claim that can be independently checked has been checked.
+              The decision reflects the complete evidence state.
+            </p>
+            <button className="vl-btn primary" onClick={() => onNav(5)}>
+              See the decision →
+            </button>
+          </div>
+        )}
+
+        {phase === 'run' && rel && (
+          <div className="vl-card vl-stepcard">
+            <div className="vl-stepnum">One independent check</div>
+            <p className="vl-note dim" style={{ marginTop: 0 }}>Checking: “{spec.question}”</p>
+            <p className="vl-action">{spec.action}</p>
+            <div className="vl-donot">
+              <div className="vl-donot-head">DO NOT</div>
+              <ul className="vl-list">
+                {spec.doNot.map((d) => (
+                  <li key={d}>{d}</li>
+                ))}
+              </ul>
+            </div>
+            <p className="vl-indep">{spec.independentLine}</p>
+            <div className="vl-demo-tag">DEMO MODE — simulated independent verification. In the live product this would be the real answer.</div>
+            <div className="vl-outcomes">
+              {OUTCOME_ORDER.map((key) => (
+                <button key={key} className="vl-btn outcome" onClick={() => chooseOutcome(key)}>
+                  <b>{spec.outcomes[key].label}</b>
+                  <span className="vl-why-go">▸</span>
+                </button>
+              ))}
+            </div>
+            <button className="vl-btn ghost" onClick={stop}>Stop Verification</button>
+          </div>
+        )}
+
+        {phase === 'updated' && lastEffect && (
+          <>
+            <div className="vl-card">
+              <div className="vl-card-head">Graph updated</div>
+              <div className="vl-grapheffect">
+                <span className="vl-ge-label">Relationship {rel ? rel.id : ''}</span>
+                <span className="vl-ge-flow">
+                  <span className="vl-typebadge" style={{ background: EC[lastEffect.from] }}>{lastEffect.from}</span>
+                  <span className="vl-ge-arrow">→</span>
+                  <span className="vl-typebadge" style={{ background: EC[lastEffect.to] }}>{lastEffect.to}</span>
+                </span>
+              </div>
+              <p className="vl-note">
+                The result is folded into the same Evidence Graph — with verification provenance.
+                No verdict is set here: the decision is recalculated from the complete evidence state on Page 5.
+              </p>
+              <button className="vl-btn primary" onClick={() => onNav(5)}>
+                See the decision →
+              </button>
+              {sel.top && (
+                <button className="vl-btn ghost" onClick={() => setPhase('identify')}>
+                  Check the next weakest link →
+                </button>
+              )}
+            </div>
+
+            <div className="vl-card">
+              <button className="vl-secbtn" onClick={() => setShowHist((v) => !v)}>
+                VERIFICATION HISTORY · {history.length} <span>{showHist ? '▾' : '▸'}</span>
+              </button>
+              {showHist && (
+                <div className="vl-hist">
+                  {history.map((h, i) => (
+                    <div key={i} className="vl-hist-item">
+                      <div className="vl-hist-head">{h.what}</div>
+                      {h.edgeAfter && (
+                        <div className="vl-ge-flow">
+                          <span className="vl-typebadge" style={{ background: EC[h.previousStatus || 'UNKNOWN'] }}>{h.previousStatus || 'UNKNOWN'}</span>
+                          <span className="vl-ge-arrow">→</span>
+                          <span className="vl-typebadge" style={{ background: EC[h.edgeAfter] }}>{h.edgeAfter}</span>
+                        </div>
+                      )}
+                      <div className="vl-hist-meta">
+                        {h.state} · {h.at} · {scase.caseId}
+                      </div>
                     </div>
-                  ) : inspected.n === 1 ? (
-                    <button className="vl-btn primary" onClick={() => pickCandidate(inspected.id)}>
-                      This is the weakest link →
-                    </button>
-                  ) : (
-                    <>
-                      <p className="vl-note dim">It hangs off the first link — verify the officer first.</p>
-                      <button className="vl-btn primary" onClick={() => pickCandidate(scase.links[0].id)}>
-                        Verify the officer first (recommended) →
-                      </button>
-                      <button className="vl-btn ghost" onClick={() => pickCandidate(inspected.id)}>
-                        Verify this one anyway
-                      </button>
-                    </>
-                  )}
+                  ))}
                 </div>
               )}
             </div>
 
-            {pickedId && (
-              <div className="vl-card">
-                <div className="vl-card-head">Independence test</div>
-                <p className="vl-note">{quiz.prompt}</p>
-                <div className="vl-quiz">
-                  {quiz.options.map((opt, i) => {
-                    const chosen = quizPick === i;
-                    const cls = chosen ? (opt.correct ? ' right' : ' wrong') : quizDone && opt.correct ? ' right-dim' : '';
-                    return (
-                      <button
-                        key={i}
-                        className={`vl-quiz-opt${cls}`}
-                        disabled={quizDone}
-                        onClick={() => answerQuiz(i)}
-                      >
-                        <span className="vl-quiz-label">{opt.label}</span>
-                        {chosen && <span className="vl-quiz-why">{opt.why}</span>}
-                      </button>
-                    );
-                  })}
+            <div className="vl-card">
+              <button className="vl-secbtn" onClick={() => setShowProv((v) => !v)}>
+                View evidence provenance <span>{showProv ? '▾' : '▸'}</span>
+              </button>
+              {showProv && history.length > 0 && (
+                <div className="vl-prov">
+                  {[
+                    ['Claim', `“${history[history.length - 1].question}”`],
+                    ['Verification', history[history.length - 1].method],
+                    ['Source', history[history.length - 1].sourceType || '—'],
+                    ['Result', history[history.length - 1].resultText],
+                    ['Graph effect', `${history[history.length - 1].previousStatus || 'UNKNOWN'} → ${history[history.length - 1].edgeAfter || '—'}`],
+                    ['Independently verified', history[history.length - 1].verifiedIndependently ? 'Yes' : 'No'],
+                  ].map(([k, v]) => (
+                    <div key={k} className="vl-prov-row">
+                      <span>{k}</span>
+                      <p>{v}</p>
+                    </div>
+                  ))}
                 </div>
-                {quizDone && (
-                  <div className="vl-panel">
-                    <div className="vl-panel-head">Correct</div>
-                    <p className="vl-note">{quiz.options.find((o) => o.correct).why}</p>
-                    <p className="vl-note dim">That is exactly what the check below does — one verification, through a source the claimant cannot control.</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {quizDone && (
-              <div className="vl-card vl-rec">
-                <div className="vl-card-head">{link.recommendation.title}</div>
-                <p className="vl-action">{link.recommendation.action}</p>
-                <div className="vl-donot">
-                  <div className="vl-donot-head">DO NOT</div>
-                  <ul className="vl-list">
-                    {link.recommendation.doNot.map((d) => (
-                      <li key={d}>{d}</li>
-                    ))}
-                  </ul>
-                </div>
-                <p className="vl-indep">{link.recommendation.independentLine}</p>
-                <div className="vl-exp">
-                  <button className="vl-why" onClick={() => setWhyOpen(whyOpen === 'w' ? null : 'w')}>
-                    Why this check? <span className="vl-why-go">{whyOpen === 'w' ? '▾' : '▸'}</span>
-                  </button>
-                  {whyOpen === 'w' && (
-                    <p className="vl-note">
-                      {link.recommendation.whyIndependent} {link.recommendation.whyThisCheck}{' '}
-                      {link.recommendation.whyOne}
-                    </p>
-                  )}
-                </div>
-                <button className="vl-btn primary" onClick={goPart2}>
-                  Continue to the check →
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
 
-        {part === 2 && (
-          <>
-            <div className="vl-card">
-              <div className="vl-card-head">Check in progress</div>
-              <p className="vl-note dim" style={{ marginTop: 0 }}>
-                Weakest link: “{link.question}”
-                {(phase === 'prep' || phase === 'ask') && (
-                  <button className="vl-linkbtn" onClick={() => setPart(1)}> change</button>
-                )}
-              </p>
-              <VerifyChain
-                chain={link.chain}
-                edgeType={edgeState}
-                animating={phase === 'folded' || phase === 'done'}
-                compact
-              />
-            </div>
-
-            {phase === 'prep' && (
-              <div className="vl-card vl-stepcard">
-                <div className="vl-stepnum">Step 1 · Prepare</div>
-                <p className="vl-note">Use a source the caller doesn’t control.</p>
-                <div className="vl-panel">
-                  <div className="vl-panel-head">Independent source</div>
-                  <p className="vl-note">{link.recommendation.action}</p>
-                  <div className="vl-panel-head">Ask exactly this</div>
-                  <p className="vl-question">“{link.question}”</p>
-                </div>
-                <button className="vl-btn primary" onClick={() => setPhase('ask')}>
-                  I’m ready — make the check
-                </button>
-                <button className="vl-btn ghost" onClick={stop}>Stop Verification</button>
-              </div>
-            )}
-
-            {phase === 'ask' && (
-              <div className="vl-card vl-stepcard">
-                <div className="vl-stepnum">Step 2 · Ask &amp; record</div>
-                <p className="vl-note">Ask the question through the independent source, then record what came back.</p>
-                <div className="vl-demo-tag">DEMO MODE — the external result is simulated. In the live product this would be the real answer.</div>
-                <div className="vl-outcomes">
-                  {Object.entries(link.outcomes).map(([key, o]) => (
-                    <button key={key} className="vl-btn outcome" onClick={() => chooseOutcome(key)}>
-                      <b>{o.label}</b>
-                      <span className="vl-why-go">▸</span>
-                    </button>
-                  ))}
-                </div>
-                <button className="vl-btn ghost" onClick={stop}>Stop Verification</button>
-              </div>
-            )}
-
-            {phase === 'received' && outcome && (
-              <div className="vl-card vl-stepcard">
-                <div className="vl-stepnum">Step 3 · Fold it in</div>
-                <div className="vl-resline">
-                  <span>Source</span>
-                  <b>{outcome.sourceType}</b>
-                </div>
-                <div className="vl-resline">
-                  <span>Result</span>
-                  <b>{outcome.resultText}</b>
-                </div>
-                <p className="vl-note">This is new evidence. Fold it into the graph to update the relationship.</p>
-                <button className="vl-btn primary" onClick={() => { setFlipKey((k) => k + 1); setPhase('folded'); }}>
-                  Fold into the evidence graph →
-                </button>
-              </div>
-            )}
-
-            {phase === 'folded' && outcome && (
-              <div className="vl-card vl-stepcard">
-                <div className="vl-stepnum">Step 4 · Recompute</div>
-                <div className="vl-grapheffect">
-                  <span className="vl-ge-label">Graph effect</span>
-                  <span className="vl-ge-flow">
-                    <span className="vl-typebadge" style={{ background: EC.UNKNOWN }}>UNKNOWN</span>
-                    <span className="vl-ge-arrow">→</span>
-                    <span className="vl-typebadge" style={{ background: EC[outcome.edgeAfter] }}>{outcome.edgeAfter}</span>
-                  </span>
-                </div>
-                <p className="vl-note">The relationship is updated. Now recompute what the case means.</p>
-                <button className="vl-btn primary" onClick={() => setPhase('done')}>
-                  Recompute the verdict →
-                </button>
-              </div>
-            )}
-
-            {phase === 'done' && outcome && (
-              <>
-                <div className="vl-card">
-                  <div className="vl-recomputed">CASE RECOMPUTED</div>
-                  <div className="vl-statusrow big">
-                    <span className="vl-status-label">Verdict</span>
-                    <span className="vl-verdict" style={{ color: VC[outcomeVerdict(outcome)], borderColor: VC[outcomeVerdict(outcome)] }}>
-                      {outcomeVerdict(outcome)}
-                    </span>
-                  </div>
-                  <p className="vl-note">{outcome.verdictNote}</p>
-                  <div className="vl-nextaction">
-                    <div className="vl-panel-head">Next safest action</div>
-                    <p className="vl-note" style={{ margin: 0 }}>{outcome.nextAction}</p>
-                  </div>
-                  {outcomeKey === 'inconclusive' && scase.links.length > 1 && link.n === 1 && (
-                    <button className="vl-btn primary" onClick={tryAnother}>
-                      Try another verification →
-                    </button>
-                  )}
-                </div>
-
-                <div className="vl-card">
-                  <button className="vl-secbtn" onClick={() => setShowHist((v) => !v)}>
-                    VERIFICATION HISTORY · {history.length} <span>{showHist ? '▾' : '▸'}</span>
-                  </button>
-                  {showHist && (
-                    <div className="vl-hist">
-                      {history.map((h, i) => (
-                        <div key={i} className="vl-hist-item">
-                          <div className="vl-hist-head">{h.what}</div>
-                          {h.effect && (
-                            <div className="vl-ge-flow">
-                              <span className="vl-typebadge" style={{ background: EC[h.effect.from] }}>{h.effect.from}</span>
-                              <span className="vl-ge-arrow">→</span>
-                              <span className="vl-typebadge" style={{ background: EC[h.effect.to] }}>{h.effect.to}</span>
-                            </div>
-                          )}
-                          <div className="vl-hist-meta">
-                            {h.state} · {h.at} · {h.caseId}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="vl-card">
-                  <button className="vl-secbtn" onClick={() => setShowProv((v) => !v)}>
-                    View evidence provenance <span>{showProv ? '▾' : '▸'}</span>
-                  </button>
-                  {showProv && (
-                    <div className="vl-prov">
-                      {[
-                        ['Claim', `Caller claims: ${link.chain.nodes[1]} — ${link.chain.edgeLabel.toLowerCase()} ${'unknown'}`],
-                        ['Question', link.question],
-                        ['Verification', link.recommendation.action],
-                        ['Result', `${outcome.sourceType} — ${outcome.resultText}`],
-                        ['Graph effect', `${link.chain.edgeLabel}: ${'UNKNOWN'} → ${outcome.edgeAfter}`],
-                        ['Verdict effect', `${prevVerdict || scase.initialVerdict} → ${outcomeVerdict(outcome)}`],
-                      ].map(([k, v]) => (
-                        <div key={k} className="vl-prov-row">
-                          <span>{k}</span>
-                          <p>{v}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="vl-card">
-                  <div className="vl-card-head">Loop complete</div>
-                  <p className="vl-note">
-                    New independent evidence is folded in. The decision on Page 5 now reflects this check.
-                  </p>
-                  <button className="vl-btn primary" onClick={() => onNav(5)}>
-                    See the decision →
-                  </button>
-                  <button className="vl-btn ghost" onClick={() => (onBack ? onBack() : onNav(3))}>
-                    ← Back to Evidence Graph
-                  </button>
-                </div>
-              </>
-            )}
-
-            {phase === 'stopped' && (
-              <div className="vl-card vl-stepcard">
-                <div className="vl-stepnum">Verification stopped</div>
-                <div className="vl-statusrow big">
-                  <span className="vl-status-label">Case status</span>
-                  <span className="vl-verdict" style={{ color: VC.UNRESOLVED, borderColor: VC.UNRESOLVED }}>UNRESOLVED</span>
-                </div>
-                <p className="vl-note">No conclusion was forced because independent evidence was not obtained.</p>
-                <button className="vl-btn primary" onClick={() => { setPart(1); setPhase('prep'); setOutcome(null); setOutcomeKey(null); }}>
-                  Back to the weakest link
-                </button>
-                <button className="vl-btn ghost" onClick={() => onNav(5)}>
-                  See the decision →
-                </button>
-              </div>
-            )}
-          </>
+        {phase === 'stopped' && (
+          <div className="vl-card vl-stepcard">
+            <div className="vl-stepnum">Verification stopped</div>
+            <p className="vl-note">No conclusion was forced because independent evidence was not obtained.</p>
+            <button className="vl-btn primary" onClick={() => { setSkipped([]); setPhase('identify'); }}>
+              Back to the weakest link
+            </button>
+            <button className="vl-btn ghost" onClick={() => onNav(5)}>
+              See the decision →
+            </button>
+          </div>
         )}
 
         <div className="vl-foot">
-          Prototype · simulated verification results are labeled DEMO MODE · no scores are computed
+          Prototype · DEMO MODE — simulated independent verification · no scores are computed
         </div>
       </div>
     </div>

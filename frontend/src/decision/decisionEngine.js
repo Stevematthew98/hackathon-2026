@@ -1,19 +1,21 @@
 // Idea 5 · Decision-Safe Output — verdict engine.
 //
 // Pure logic, no UI. The decision is a DETERMINISTIC function of the
-// structured case state (Idea 3 relationships + Idea 4 verification records).
+// effective Idea 3 graph state: base relationships with Idea 4 verification
+// results folded in (shared/graphState). Idea 5 invents no evidence.
+//
 // No numeric scores, no percentages, no invented certainty.
 //
 // Rules (locked):
 //   HIGH RISK    — an INDEPENDENT check conflicts with a load-bearing claim.
-//                  Claim-vs-claim contradictions alone are suspicion, not proof.
-//   LOW RISK     — an independent check SUPPORTS the load-bearing claim and no
-//                  verified conflict exists. Never "genuine" / "100% safe".
-//   NEEDS REVIEW — a material claim is still UNKNOWN (unverified). Never forced.
+//   LOW RISK     — an independent check SUPPORTS the load-bearing claim, no
+//                  conflict or anomaly remains, and no material UNKNOWN is
+//                  unresolved. Never "genuine" / "100% safe".
+//   NEEDS REVIEW — anything else. A genuine abstention; never forced.
 
 import { CASES } from '../graph/graphScenarios';
-import { VERIFY_CASES } from '../verify/verifyScenarios';
-import { getVerificationState, latestChecks } from '../shared/caseStore';
+import { getEffectiveRelationships, selectWeakestLink, CASE_IDS } from '../shared/graphState';
+import { getVerificationState } from '../shared/caseStore';
 
 export const VERDICTS = {
   'HIGH RISK': {
@@ -36,85 +38,62 @@ export const VERDICTS = {
   },
 };
 
-// Base-graph relationships whose UNKNOWN state materially blocks a decision.
-const MATERIAL_RELS = {
-  'digital-arrest': ['R4'], // caller voice vs reference voice — identity-bearing
-  'legit-bank': [],
-  'customs-sms': ['R1', 'R2'], // sender identity + parcel reference — both load-bearing
-};
+// A material UNKNOWN: an unresolved relationship about claimed identity or
+// authority, or one carrying an open independent check. Unresolved material
+// unknowns block a definitive LOW RISK — the system abstains instead.
+const isMaterialUnknown = (r) =>
+  r.effectiveType === 'UNKNOWN' && (r.identityBearing || r.authorityBearing || !!r.verificationSpec);
 
 export function buildDecision(caseId) {
   const g = CASES[caseId];
-  const v = VERIFY_CASES[caseId];
-  if (!g || !v) return null;
+  if (!g) return null;
   const store = getVerificationState(caseId);
-  const checks = latestChecks(caseId); // freshest check per weakest link
+  const rels = getEffectiveRelationships(caseId);
 
-  // ---- standing edges: one per weakest link, UNKNOWN until independently checked
-  const standing = v.links.map((link) => {
-    const check = checks.find((c) => c.linkId === link.id && c.state !== 'Stopped') || null;
-    const type = check ? check.edgeAfter : 'UNKNOWN';
-    return {
-      linkId: link.id,
-      graphRelId: link.graphRelId,
-      title: link.question,
-      stake: link.stake,
-      type,
-      verified: !!check && type !== 'UNKNOWN',
-      check,
-      material: true,
-      evidenceAvailable: link.evidenceAvailable,
-      evidenceMissing: link.evidenceMissing,
-      recommendation: link.recommendation,
-    };
-  });
+  const verified = rels.filter((r) => r.verification);
+  const verifiedConflicts = verified.filter((r) => r.verification.newStatus === 'CONFLICT');
+  const verifiedSupports = verified.filter((r) => r.verification.newStatus === 'SUPPORT');
+  const baseConflicts = rels.filter((r) => !r.verification && r.effectiveType === 'CONFLICT');
+  const anomalies = rels.filter((r) => r.effectiveType === 'ANOMALY');
+  const materialUnknowns = rels.filter(isMaterialUnknown);
+  const weakest = selectWeakestLink(caseId).top;
 
-  const verifiedConflicts = standing.filter((s) => s.verified && s.type === 'CONFLICT');
-  const verifiedSupports = standing.filter((s) => s.verified && s.type === 'SUPPORT');
-  const materialUnknownRels = (MATERIAL_RELS[caseId] || [])
-    .map((id) => g.relationships.find((r) => r.id === id))
-    .filter((r) => r && r.type === 'UNKNOWN');
-  const unresolvedStanding = standing.filter((s) => !s.verified);
-
-  // ---- verdict
+  // ---- verdict, derived from the complete relationship state
   let verdict;
   if (verifiedConflicts.length > 0) verdict = 'HIGH RISK';
-  else if (verifiedSupports.length > 0) verdict = 'LOW RISK';
-  else if (materialUnknownRels.length > 0 || unresolvedStanding.length > 0) verdict = 'NEEDS REVIEW';
-  else verdict = 'NEEDS REVIEW'; // never force HIGH/LOW on thin evidence
+  else if (
+    verifiedSupports.length > 0 &&
+    baseConflicts.length === 0 &&
+    anomalies.length === 0 &&
+    materialUnknowns.length === 0
+  )
+    verdict = 'LOW RISK';
+  else verdict = 'NEEDS REVIEW'; // never force HIGH/LOW on unsettled evidence
 
   // ---- why this decision (2–3 most important, ordered)
   const reasons = [];
+  const asRel = (r) => ({ kind: 'rel', rel: r });
+  const asVerified = (r) => ({ kind: 'verified', rel: r, record: r.verification });
   if (verdict === 'HIGH RISK') {
-    verifiedConflicts.forEach((s) => reasons.push({ kind: 'check', standing: s }));
-    const r1 = g.relationships.find((r) => r.type === 'CONFLICT');
-    if (r1) reasons.push({ kind: 'rel', rel: r1 });
-    const an = g.relationships.find((r) => r.type === 'ANOMALY');
-    if (an && reasons.length < 3) reasons.push({ kind: 'rel', rel: an });
+    verifiedConflicts.forEach((r) => reasons.push(asVerified(r)));
+    baseConflicts.slice(0, 1).forEach((r) => reasons.push(asRel(r)));
+    if (reasons.length < 3) anomalies.slice(0, 1).forEach((r) => reasons.push(asRel(r)));
   } else if (verdict === 'LOW RISK') {
-    verifiedSupports.forEach((s) => reasons.push({ kind: 'check', standing: s }));
-    g.relationships
-      .filter((r) => r.type === 'SUPPORT')
+    verifiedSupports.forEach((r) => reasons.push(asVerified(r)));
+    rels
+      .filter((r) => r.effectiveType === 'SUPPORT')
       .slice(0, 2)
-      .forEach((r) => reasons.push({ kind: 'rel', rel: r }));
+      .forEach((r) => reasons.push(asRel(r)));
   } else {
-    unresolvedStanding.slice(0, 1).forEach((s) => reasons.push({ kind: 'standing', standing: s }));
-    materialUnknownRels.slice(0, 1).forEach((r) => reasons.push({ kind: 'rel', rel: r }));
-    const susp =
-      g.relationships.find((r) => r.type === 'CONFLICT') ||
-      g.relationships.find((r) => r.type === 'ANOMALY');
-    if (susp && reasons.length < 3) reasons.push({ kind: 'rel', rel: susp });
+    if (weakest) reasons.push({ kind: 'rel', rel: weakest.rel });
+    else materialUnknowns.slice(0, 1).forEach((r) => reasons.push(asRel(r)));
+    const susp = baseConflicts[0] || anomalies[0];
+    if (susp && reasons.length < 3) reasons.push(asRel(susp));
   }
 
-  // ---- uncertainty: prioritized, never fabricated
+  // ---- uncertainty: prioritized, never fabricated — read from the graph
   const uncertainties = [];
-  unresolvedStanding.forEach((s) => {
-    uncertainties.push({
-      label: `Unverified — ${s.title}`,
-      text: `This claim has not been independently checked. Still unknown: ${(s.evidenceMissing || []).join('; ')}.`,
-    });
-  });
-  materialUnknownRels.forEach((r) => {
+  materialUnknowns.forEach((r) => {
     uncertainties.push({ label: `${r.id} · ${r.title}`, text: r.uncertainty });
   });
   store.verifications
@@ -130,8 +109,8 @@ export function buildDecision(caseId) {
       label: 'Consistency is not proof',
       text: 'The available evidence is consistent, but authenticity cannot be established with certainty. New evidence could change this assessment.',
     });
-    g.relationships
-      .filter((r) => r.type === 'SUPPORT' && r.uncertainty)
+    rels
+      .filter((r) => r.effectiveType === 'SUPPORT' && r.uncertainty)
       .slice(0, 1)
       .forEach((r) => uncertainties.push({ label: `${r.id} · caveat`, text: r.uncertainty }));
   }
@@ -142,20 +121,20 @@ export function buildDecision(caseId) {
   const lastDone = [...store.verifications].reverse().find((c) => c.state !== 'Stopped');
   const nextAction = lastDone
     ? lastDone.nextAction
-    : verdict === 'NEEDS REVIEW'
-      ? v.links[0].recommendation.action
+    : verdict === 'NEEDS REVIEW' && weakest
+      ? weakest.rel.verificationSpec.action
       : VERDICTS[verdict].cardBody;
 
   // ---- decision trace
   const relCounts = { CONFLICT: 0, ANOMALY: 0, UNKNOWN: 0, SUPPORT: 0 };
-  g.relationships.forEach((r) => {
-    if (relCounts[r.type] !== undefined) relCounts[r.type] += 1;
+  rels.forEach((r) => {
+    if (relCounts[r.effectiveType] !== undefined) relCounts[r.effectiveType] += 1;
   });
   const trace = {
     evidenceItems: g.evidence.length,
     claims: g.claims.length,
     relCounts,
-    unresolved: materialUnknownRels.length + unresolvedStanding.length,
+    unresolved: materialUnknowns.length,
     checksDone: store.verifications.filter((c) => c.state !== 'Stopped').length,
     checksTotal: store.verifications.length,
     decision: verdict,
@@ -164,22 +143,20 @@ export function buildDecision(caseId) {
   return {
     caseId,
     caseType: g.caseType,
-    caseLabel: v.caseId,
+    caseLabel: g.caseId,
     verdict,
     verdictMeta: VERDICTS[verdict],
     reasons: reasons.slice(0, 3),
-    standing,
-    baseRels: g.relationships,
+    baseRels: rels, // effective relationships — the report groups by current type
     uncertainties: uncertaintiesView,
     noUncertainty,
     nextAction,
     checks: store.verifications,
     openedAt: store.openedAt,
     trace,
-    weakestLink: v.links[0],
+    weakestLink: weakest ? weakest.rel : null,
     graphCase: g,
-    verifyCase: v,
   };
 }
 
-export const DECISION_IDS = ['digital-arrest', 'legit-bank', 'customs-sms'];
+export const DECISION_IDS = CASE_IDS;

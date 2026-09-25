@@ -1,15 +1,23 @@
 // TrustGuard · shared case-verification state.
 //
-// The smallest clean interface between Idea 4 (The Verification Loop, the
-// writer) and Idea 5 (Decision-Safe Output, the reader). Idea 4 records every
-// completed or stopped independent check here; Idea 5 reads the same store
-// and recomputes its verdict live — so returning from the loop always shows
-// the current decision. No verdicts or scores are stored, only evidence.
+// The interface between Idea 4 (The Verification Loop, the writer) and the
+// graph/decision layers (the readers). Idea 4 records every completed or
+// stopped independent check here; the SAME Idea 3 graph is read back with
+// the result folded in (see shared/graphState.js), and Idea 5 recomputes
+// its verdict live — so returning from the loop always shows the current
+// decision.
+//
+// Idea 4 does NOT decide the case: no verdicts and no scores are stored,
+// only evidence. Each entry carries verification provenance:
+//   previousStatus -> edgeAfter, sourceType, method, resultText, timestamp,
+//   verifiedIndependently: true.
 //
 // Entry shape (written by VerificationLoop.chooseOutcome / stop):
-//   { linkId, relId, question, what, why, sourceType, method, resultText,
-//     edgeAfter: 'CONFLICT'|'SUPPORT'|'UNKNOWN'|null, outcomeKey,
-//     nextAction, state: 'Completed'|'Inconclusive'|'Stopped' }
+//   { relId, question, what, why, sourceType, method, resultText,
+//     previousStatus: 'UNKNOWN', edgeAfter: 'CONFLICT'|'SUPPORT'|'UNKNOWN'|null,
+//     outcomeKey: 'confirmed'|'denied'|'inconclusive'|'stopped',
+//     nextAction, state: 'Completed'|'Inconclusive'|'Stopped',
+//     verifiedIndependently: true }
 
 const cases = {};
 
@@ -54,15 +62,17 @@ export function recordVerification(caseId, entry) {
   return s;
 }
 
-// Latest check per weakest link — the decision layer always reads the
-// freshest state of each checked claim.
+// Latest check per verified relationship — readers always see the freshest
+// state of each checked claim. Keyed by relId (legacy entries keyed by
+// linkId are honored too).
 export function latestChecks(caseId) {
   const s = getVerificationState(caseId);
-  const byLink = {};
+  const byRel = {};
   s.verifications.forEach((v) => {
-    byLink[v.linkId] = v;
+    const id = v.relId || v.linkId;
+    if (id) byRel[id] = v;
   });
-  return Object.values(byLink);
+  return Object.values(byRel);
 }
 
 export function resetVerificationState(caseId) {
