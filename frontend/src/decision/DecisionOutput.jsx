@@ -112,7 +112,6 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
   const [caseId, setCaseId] = useState(initialCase);
   const [tick, setTick] = useState(0);
   const [, setWhyOpen] = useState('r0');
-  const [ledgerOpen, setLedgerOpen] = useState(null);
   const [uncOpen, setUncOpen] = useState(true);
   const [histOpen, setHistOpen] = useState(null);
   const [traceOpen, setTraceOpen] = useState(false);
@@ -126,7 +125,6 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
     if (id === caseId) return;
     setCaseId(id);
     setWhyOpen('r0');
-    setLedgerOpen(null);
     setUncOpen(true);
     setHistOpen(null);
     setTraceOpen(false);
@@ -137,18 +135,9 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
     resetVerificationState(caseId);
     setTick((t) => t + 1);
     setWhyOpen('r0');
-    setLedgerOpen(null);
     setHistOpen(null);
     setReportFile(null);
   };
-
-  const ledger = [
-    ...d.baseRels.map((r) => ({ kind: 'rel', id: r.id, type: r.type, title: r.title, rel: r })),
-    ...d.standing.map((s) => ({
-      kind: 'check', id: `check-${s.linkId}`, type: s.type, title: s.title, standing: s,
-      status: s.check ? `${s.check.state} · ${s.type}` : 'Not yet checked',
-    })),
-  ];
 
   const t = d.trace;
   const traceSteps = [
@@ -200,10 +189,10 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
           <p className="do-note dim">{vm.note} Assessment, not proof.</p>
         </div>
 
-        {/* 2 — WHY THIS DECISION? */}
+        {/* 2 — EVIDENCE */}
         <div className="do-card">
-          <div className="do-sec-label">Why this decision?</div>
-          <p className="do-note">The {d.reasons.length} findings below decided it. Tap any finding to inspect it.</p>
+          <div className="do-sec-label">Evidence</div>
+          <p className="do-note">The {d.reasons.length} findings that decided it. Tap any finding to inspect it.</p>
           {d.reasons.map((r, i) => (
             <div key={i}>
               {i > 0 && <div className="do-sep" />}
@@ -212,46 +201,7 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
           ))}
         </div>
 
-        {/* 3 — EVIDENCE LEDGER */}
-        <div className="do-card">
-          <div className="do-sec-label">Evidence ledger</div>
-          <p className="do-note">{ledger.length} items · relationships and independent checks on one record.</p>
-          {ledger.map((item) => (
-            <Expander
-              key={item.id} id={item.id} openId={ledgerOpen} setOpenId={setLedgerOpen}
-              title={item.title}
-              right={<Badge type={item.type} />}
-            >
-              {item.kind === 'rel' ? (
-                <div className="do-reason-body">
-                  <div className="do-kv"><span>Evidence type</span><p>Graph relationship · {item.rel.id}</p></div>
-                  <div className="do-kv"><span>Source</span><p>{item.rel.sourceA} vs {item.rel.sourceB}</p></div>
-                  <div className="do-kv"><span>Extracted claim</span><p>“{item.rel.claimA}”</p></div>
-                  <div className="do-kv"><span>Relationship</span><p><Badge type={item.rel.type} /></p></div>
-                  <div className="do-kv"><span>Status</span><p>{item.rel.type === 'UNKNOWN' ? 'Unresolved — needs independent evidence' : item.rel.result}</p></div>
-                  <button className="do-linkbtn" onClick={() => onViewGraph(caseId, item.rel.id)}>
-                    View in Evidence Graph →
-                  </button>
-                </div>
-              ) : (
-                <div className="do-reason-body">
-                  <div className="do-kv"><span>Evidence type</span><p>Independent verification · weakest link</p></div>
-                  <div className="do-kv"><span>Source</span><p>{item.standing.check ? item.standing.check.sourceType : 'Not yet checked'}</p></div>
-                  <div className="do-kv"><span>Extracted claim</span><p>{item.standing.stake.claimA}</p></div>
-                  <div className="do-kv"><span>Relationship</span><p><Badge type={item.standing.type} /> {item.standing.check ? `UNKNOWN → ${item.standing.type}` : 'standing: UNKNOWN'}</p></div>
-                  <div className="do-kv"><span>Status</span><p>{item.status}</p></div>
-                  {item.standing.graphRelId && (
-                    <button className="do-linkbtn" onClick={() => onViewGraph(caseId, item.standing.graphRelId)}>
-                      View in Evidence Graph →
-                    </button>
-                  )}
-                </div>
-              )}
-            </Expander>
-          ))}
-        </div>
-
-        {/* 4 — UNCERTAINTY */}
+        {/* 3 — UNCERTAINTY */}
         <div className="do-card do-unc">
           <button className="do-secbtn" onClick={() => setUncOpen((v) => !v)}>
             <span className="do-sec-label" style={{ margin: 0 }}>What TrustGuard still does not know</span>
@@ -273,40 +223,35 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
           )}
         </div>
 
-        {/* 5 — NEXT SAFEST ACTION (exactly one) */}
+        {/* 4 — NEXT SAFEST ACTION (exactly one) */}
         <div className="do-card do-action">
           <div className="do-sec-label">Next safest action</div>
           <p className="do-action-text">{d.nextAction}</p>
           <p className="do-note dim">One action — not a checklist. TrustGuard recommends the single safest next step for this case.</p>
         </div>
 
-        {/* 6 — VERIFICATION LOOP CONNECTION */}
+        {/* 5 — VERIFICATION LOOP CONNECTION */}
         <div className="do-card">
           <div className="do-sec-label">Verification loop</div>
           {d.verdict === 'NEEDS REVIEW' ? (
             <>
-              <p className="do-note">Evidence is not sufficient to settle this case.</p>
-              <div className="do-kv"><span>Weakest link</span><p>“{d.weakestLink.question}”</p></div>
-              <div className="do-kv"><span>Recommended check</span><p>{d.weakestLink.recommendation.action}</p></div>
+              <p className="do-note">Not settled yet. The weakest link: “{d.weakestLink.question}”</p>
               <button className="do-btn primary" onClick={() => onContinueVerify(caseId)}>
                 Continue verification →
               </button>
-              <p className="do-note dim">Returns to the Verification Loop. Completing the check recomputes this decision automatically.</p>
+              <p className="do-note dim">Completing the check recomputes this decision automatically.</p>
             </>
           ) : (
             <>
-              <p className="do-note">The load-bearing claim has been independently checked. You can run the loop again at any time — new evidence recomputes the decision.</p>
+              <p className="do-note">The load-bearing claim has been independently checked. New evidence recomputes this decision.</p>
               <button className="do-btn ghost" onClick={() => onContinueVerify(caseId)}>
                 Back to the Verification Loop
               </button>
             </>
           )}
-          {d.checks.length > 0 && (
-            <p className="do-note dim">{d.checks.length} verification{d.checks.length > 1 ? 's' : ''} on record — see history below.</p>
-          )}
         </div>
 
-        {/* 7 — VERIFICATION HISTORY */}
+        {/* 6 — VERIFICATION HISTORY */}
         <div className="do-card">
           <div className="do-sec-label">Verification history</div>
           {d.checks.length === 0 ? (
@@ -334,7 +279,7 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
           )}
         </div>
 
-        {/* 8 — DECISION TRACE */}
+        {/* 7 — DECISION TRACE */}
         <div className="do-card">
           <button className="do-secbtn" onClick={() => setTraceOpen((v) => !v)}>
             <span className="do-sec-label" style={{ margin: 0 }}>How TrustGuard reached this decision</span>
@@ -361,10 +306,10 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
           )}
         </div>
 
-        {/* 9 — EXPORT */}
+        {/* 8 — EXPORT */}
         <div className="do-card">
           <div className="do-sec-label">Case report</div>
-          <p className="do-note">A structured evidence &amp; assessment report — clean enough to show the judges, honest about what it is.</p>
+          <p className="do-note">A structured evidence &amp; assessment report.</p>
           <button
             className="do-btn primary"
             onClick={() => {

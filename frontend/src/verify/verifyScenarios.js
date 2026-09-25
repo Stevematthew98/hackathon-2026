@@ -120,7 +120,7 @@ export const VERIFY_CASES = {
         loadBearing: 'This is the load-bearing claim where the available evidence is thinnest.',
         affects: ['caller identity', 'claimed authority', 'claimed investigation'],
         whyWeakest:
-          'The caller’s entire authority rests on this affiliation — the name (R1), the number (R2) and the voice (R4) are all suspicious or unverifiable on their own. If the affiliation itself is independently disproven, the authority claim collapses; if it is confirmed, the remaining evidence must be weighed honestly. No other single check touches this many relationships at once.',
+          'The caller’s authority rests on this affiliation — the name, number, and voice are all unverifiable on their own. Disprove the affiliation and the authority collapses; confirm it and the rest must be weighed honestly.',
         chain: {
           nodes: ['Caller', 'Inspector Ravi Kumar', 'Cyber Crime Branch'],
           connectors: ['claims to be', 'claims affiliation with'],
@@ -159,7 +159,7 @@ export const VERIFY_CASES = {
         loadBearing: 'With the officer link exhausted, the case reference is the next thinnest claim.',
         affects: ['claimed investigation', 'payment demand', 'threat credibility'],
         whyWeakest:
-          'The officer-affiliation check could not be completed, so the next single check targets the other load-bearing claim: the investigation itself. A real case reference can be confirmed against an official record; a fabricated one cannot survive that check.',
+          'The officer check was inconclusive, so the next single check targets the other load-bearing claim: the investigation itself. A real case reference can be confirmed against an official record; a fabricated one cannot.',
         chain: {
           nodes: ['Caller', 'Case reference (as stated on call)', 'Official case record'],
           connectors: ['claims case', 'confirm against'],
@@ -224,7 +224,7 @@ export const VERIFY_CASES = {
         loadBearing: 'This is the load-bearing claim where the available evidence is thinnest.',
         affects: ['caller identity', 'claimed authority'],
         whyWeakest:
-          'The number matches the bank’s listed number (R1) and the request pattern is routine (R2) — but both of those are observations about the call, not proof of who is on it. One independent callback resolves the identity question directly, and nothing else in the case needs a check first.',
+          'The matching number and routine request are observations about the call, not proof of who is on it. One independent callback resolves the identity question directly.',
         chain: {
           nodes: ['Caller', 'City Trust Bank fraud team', 'Official bank staff record'],
           connectors: ['claims to be', 'confirm against'],
@@ -321,7 +321,7 @@ VERIFY_CASES['customs-sms'] = {
       loadBearing: 'This is the load-bearing claim where the available evidence is thinnest.',
       affects: ['claimed parcel', 'payment demand', 'sender authority'],
       whyWeakest:
-        'The fee demand, the urgency, and the link all hang on one thing: that a parcel actually exists. The sender cannot be tied to any department from the available evidence, so the parcel reference is the one claim an independent source can settle directly. If no such parcel exists, the demand collapses; if it does, the remaining evidence must be weighed honestly.',
+        'The fee demand, urgency, and link all hang on one thing: that a parcel actually exists. That is the one claim an independent source can settle directly.',
       chain: {
         nodes: ['SMS', 'Parcel PKG-88213', 'Official parcel record'],
         connectors: ['claims parcel', 'confirm against'],

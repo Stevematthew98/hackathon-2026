@@ -23,7 +23,6 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
   const [candOpen, setCandOpen] = useState(null); // candidate being inspected
   const [quizPick, setQuizPick] = useState(null); // index
   const [quizDone, setQuizDone] = useState(false);
-  const [showWhyMatters, setShowWhyMatters] = useState(false);
   const [whyOpen, setWhyOpen] = useState(null);
 
   // part 2 state
@@ -66,7 +65,6 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
     setCandOpen(null);
     setQuizPick(null);
     setQuizDone(false);
-    setShowWhyMatters(false);
     setWhyOpen(null);
     setPhase('prep');
     setOutcomeKey(null);
@@ -235,36 +233,11 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
         {part === 1 && (
           <>
             <div className="vl-card">
-              <div className="vl-card-head">Why verification is needed</div>
-              <VerifyChain
-                chain={link.chain}
-                edgeType="UNKNOWN"
-                onEdgeClick={() => setShowWhyMatters((v) => !v)}
-              />
-              {showWhyMatters && (
-                <div className="vl-panel">
-                  <div className="vl-panel-head">Why this matters</div>
-                  <p className="vl-note">{link.whyMatters}</p>
-                  <div className="vl-ev2">
-                    <div>
-                      <div className="vl-ev-head">Evidence available</div>
-                      <ul className="vl-list">
-                        {link.evidenceAvailable.map((e) => (
-                          <li key={e}>{e}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div>
-                      <div className="vl-ev-head">Evidence missing</div>
-                      <ul className="vl-list">
-                        {link.evidenceMissing.map((e) => (
-                          <li key={e}>{e}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <div className="vl-card-head">Nothing is verified yet</div>
+              <VerifyChain chain={link.chain} edgeType="UNKNOWN" compact />
+              <p className="vl-note" style={{ marginBottom: 0 }}>
+                One claim must be checked through a source the caller can’t control.
+              </p>
             </div>
 
             <div className="vl-card">
@@ -291,20 +264,6 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                       <span key={a} className="vl-chip">{a}</span>
                     ))}
                   </div>
-                  <div className="vl-panel-head">Connected evidence relationships</div>
-                  {(scase.relatedRels || []).map((rid) => {
-                    const rm = scase.relMeta[rid];
-                    return (
-                      <div key={rid} className="vl-relrow">
-                        <span className="vl-reldot" style={{ background: rm.color }} />
-                        <span className="vl-relmain">
-                          <span className="vl-reltitle">{rid}</span>
-                          <span className="vl-relid">{rm.label} · from the Evidence Graph</span>
-                        </span>
-                        <span className="vl-typebadge" style={{ background: rm.color }}>{rm.type}</span>
-                      </div>
-                    );
-                  })}
                   {pickedId === inspected.id ? (
                     <div className="vl-panel">
                       <p className="vl-note" style={{ margin: 0 }}>✓ Weakest link selected — continue below.</p>
@@ -315,7 +274,7 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                     </button>
                   ) : (
                     <>
-                      <p className="vl-note dim">Unknown too — but it hangs off the first link. Even a genuine-looking case number proves nothing if the officer himself is fake.</p>
+                      <p className="vl-note dim">It hangs off the first link — verify the officer first.</p>
                       <button className="vl-btn primary" onClick={() => pickCandidate(scase.links[0].id)}>
                         Verify the officer first (recommended) →
                       </button>
@@ -372,18 +331,17 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                   </ul>
                 </div>
                 <p className="vl-indep">{link.recommendation.independentLine}</p>
-                {[
-                  ['Why independent?', link.recommendation.whyIndependent],
-                  ['Why this check?', link.recommendation.whyThisCheck],
-                  ['Why only one check?', link.recommendation.whyOne],
-                ].map(([q, a]) => (
-                  <div key={q} className="vl-exp">
-                    <button className="vl-why" onClick={() => setWhyOpen(whyOpen === q ? null : q)}>
-                      {q} <span className="vl-why-go">{whyOpen === q ? '▾' : '▸'}</span>
-                    </button>
-                    {whyOpen === q && <p className="vl-note">{a}</p>}
-                  </div>
-                ))}
+                <div className="vl-exp">
+                  <button className="vl-why" onClick={() => setWhyOpen(whyOpen === 'w' ? null : 'w')}>
+                    Why this check? <span className="vl-why-go">{whyOpen === 'w' ? '▾' : '▸'}</span>
+                  </button>
+                  {whyOpen === 'w' && (
+                    <p className="vl-note">
+                      {link.recommendation.whyIndependent} {link.recommendation.whyThisCheck}{' '}
+                      {link.recommendation.whyOne}
+                    </p>
+                  )}
+                </div>
                 <button className="vl-btn primary" onClick={goPart2}>
                   Continue to the check →
                 </button>
@@ -551,31 +509,10 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
                 </div>
 
                 <div className="vl-card">
-                  <div className="vl-card-head">Case status</div>
-                  <div className="vl-statusrow">
-                    <span className="vl-verdict" style={{ color: VC[outcomeVerdict(outcome)], borderColor: VC[outcomeVerdict(outcome)] }}>
-                      {outcomeVerdict(outcome)}
-                    </span>
-                  </div>
-                  <div className="vl-statusgrid">
-                    <div>
-                      <span>Evidence</span>
-                      <p>{history.length + 2} items on record · {history.filter((h) => h.state === 'Completed').length} independent verification added</p>
-                    </div>
-                    <div>
-                      <span>Uncertainty</span>
-                      <p>{outcomeKey === 'inconclusive' ? 'Unresolved — further verification needed.' : `Resolved via independent verification (${outcome.edgeAfter}).`}</p>
-                    </div>
-                    <div>
-                      <span>Independent verification</span>
-                      <p>{outcome.sourceType} · {history.length ? history[history.length - 1].at : ''}</p>
-                    </div>
-                    <div>
-                      <span>Next safest action</span>
-                      <p>{outcome.nextAction}</p>
-                    </div>
-                  </div>
-                  <p className="vl-note dim">The loop is complete — the new independent evidence is folded into the case above.</p>
+                  <div className="vl-card-head">Loop complete</div>
+                  <p className="vl-note">
+                    New independent evidence is folded in. The decision on Page 5 now reflects this check.
+                  </p>
                   <button className="vl-btn primary" onClick={() => onNav(5)}>
                     See the decision →
                   </button>
