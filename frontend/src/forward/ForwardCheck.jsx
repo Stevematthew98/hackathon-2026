@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import PageHead from '../PageHead';
+import IdeaBanner from '../shared/IdeaBanner';
 import { SCENARIOS, PIPELINE_STAGES, REL_STYLE, bandClass, decideBand } from './scenarios';
 import './ForwardCheck.css';
 
@@ -183,6 +184,13 @@ export default function ForwardCheck({ page, onNav }) {
                     ))}
                   </div>
                   <button className="f2-reset" onClick={() => reset()} title="Reset demo">↺</button>
+                </div>
+                <div style={{ padding: '10px 12px 0' }}>
+                  <IdeaBanner
+                    eyebrow="Idea 2 · Forward-to-Check"
+                    line="For the calm moment: forward any suspicious message — TrustGuard builds the case. Evidence, claims, assessment."
+                    micro="Zero effort. Nothing is analyzed until you forward it."
+                  />
                 </div>
                 <div className="wa-head">
                   <span className="wa-back">‹</span>
