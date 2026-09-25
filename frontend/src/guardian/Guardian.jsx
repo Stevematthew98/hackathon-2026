@@ -107,6 +107,12 @@ export default function Guardian({ page, onNav }) {
     return () => clearInterval(iv);
   }, [phase]);
 
+  // ---- 7-second call: when the script ends the call ends with it, giving the results ----
+  useEffect(() => {
+    if (phase === 'live' && callTime >= SCRIPT_END) endCall();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callTime, phase]);
+
   // ---- tripwire: 4+ signals start an investigation. Never a verdict. ----
   // CORRECTION 1: the case is created IMMEDIATELY here — before any tap.
   // Tapping the notification later only OPENS the already-created case.
