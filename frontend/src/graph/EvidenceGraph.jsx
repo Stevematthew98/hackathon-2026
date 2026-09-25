@@ -8,7 +8,6 @@
 // relationships; the Decision-Safe Output layer (Idea 5) interprets.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import PageHead from '../PageHead';
-import IdeaBanner from '../shared/IdeaBanner';
 import { CASES, REL_META, NODE_KIND, REL_CHIPS } from './graphScenarios';
 import CheckWorkbench from './CheckWorkbench';
 import { getEffectiveRelationships, selectWeakestLink } from '../shared/graphState';
@@ -275,15 +274,6 @@ export default function EvidenceGraph({ page, onNav, onStartVerify, highlight })
       <div className="sh-stage">
         <div className="sh-phone">
           <div className="sh-screen eg-screen" ref={screenRef}>
-
-            {/* ---------- the idea, in one glance ---------- */}
-            <div style={{ padding: '14px 16px 0' }}>
-              <IdeaBanner
-                eyebrow="Idea 3 · The Evidence Graph"
-                line="Words become structured claims; claims become relationships. Contradictions become visible."
-                micro="No single score. No black box. Every finding stays inspectable."
-              />
-            </div>
 
             {/* ---------- case header ---------- */}
             <div className="eg-head">

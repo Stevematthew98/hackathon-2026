@@ -185,12 +185,12 @@ export default function VerificationLoop({ page, onNav, initialCase = 'digital-a
       <PageHead page={page} onNav={onNav} kicker="LIVE PROTOTYPE" title="Page 4 of 5 · The Verification Loop" />
       <div className="app-body">
         <div className="vl-head">
-          <div className="vl-eyebrow">Idea 4 · The Verification Loop</div>
+          <div className="vl-eyebrow">The Verification Loop</div>
           <h1 className="vl-title">The Verification Loop</h1>
           <div className="vl-sub">
             {scase.caseId} · {scase.caseType}
           </div>
-          <p className="vl-whyline">Reads the Idea 3 Evidence Graph. Writes the result back into it.</p>
+          <p className="vl-whyline">Reads the Evidence Graph. Writes the result back into it.</p>
           <div className="vl-progress">
             {steps.map((s, i) => (
               <div key={i} className={`vl-step ${s.state}`}>

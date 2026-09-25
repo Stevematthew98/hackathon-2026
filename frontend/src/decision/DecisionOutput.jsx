@@ -130,9 +130,9 @@ export default function DecisionOutput({ page, onNav, initialCase = 'digital-arr
       <PageHead page={page} onNav={onNav} label="Page 5 of 5 · Decision-Safe Output" />
       <div className="app-body">
         <div className="do-head">
-          <div className="do-eyebrow">Idea 5 · Decision-Safe Output</div>
+          <div className="do-eyebrow">Decision-Safe Output</div>
           <h1 className="do-title">What does all this evidence mean?</h1>
-          <p className="do-sub">Ideas 1–4 investigated the case. This page answers it — with the evidence, the uncertainty, and one safe next step.</p>
+          <p className="do-sub">The case has been investigated. This page answers it — with the evidence, the uncertainty, and one safe next step.</p>
           <div className="do-caseswitch">
             {DECISION_IDS.map((id) => (
               <button

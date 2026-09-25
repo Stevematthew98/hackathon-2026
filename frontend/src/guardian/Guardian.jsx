@@ -7,7 +7,6 @@ import {
 } from './callScript';
 import { createEngine, TRIPWIRE_THRESHOLD, PATTERN_COUNT } from './signalEngine';
 import PageHead from '../PageHead';
-import IdeaBanner from '../shared/IdeaBanner';
 import './Guardian.css';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -290,11 +289,6 @@ export default function Guardian({ page, onNav }) {
             {/* ============ IDLE ============ */}
             {phase === 'idle' && (
               <div className="g-pane g-fade">
-                <IdeaBanner
-                  eyebrow="Idea 1 · The Case Builds Itself"
-                  line="A suspicious call or message wakes TrustGuard — the case assembles itself from the event. You tap once."
-                  micro="The tripwire starts an investigation. It never decides one."
-                />
                 <div className="g-hero">
                   <div className="g-hero-mark" aria-hidden="true">
                     <svg viewBox="0 0 48 48" width="52" height="52" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -606,7 +600,6 @@ export default function Guardian({ page, onNav }) {
                 <button className="g-primary" onClick={() => onNav && onNav(2)}>
                   Continue to Forward-to-Check →
                 </button>
-                <p className="g-fine">Next: Idea 2 · Forward-to-Check</p>
                 <div className="g-case-foot">No verdict yet — analysis continues.</div>
               </div>
             )}
@@ -632,7 +625,7 @@ export default function Guardian({ page, onNav }) {
 
       {toast && <div className="g-toast g-fade">{toast}</div>}
 
-      <p className="g-page-fine">Idea 1 · The Case Builds Itself — prototype. Simulated telecom; real signal engine, case builder and UI states.</p>
+      <p className="g-page-fine">Prototype. Simulated telecom; real signal engine, case builder and UI states.</p>
     </div>
   );
 }
